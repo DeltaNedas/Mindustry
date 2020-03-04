@@ -451,6 +451,29 @@ public class Mods implements Loadable{
         Events.fire(new ContentReloadEvent());
     }
 
+    void loadScripts(LoadedMod mod, String lang){
+        //if there's only one script file, use it (for backwards compatibility); if there isn't, use "main.<lang>"
+        Array<Fi> allScripts = mod.root.child("scripts").findAll(f -> f.extEquals(lang));
+        Fi main = allScripts.size == 1 ? allScripts.first() : mod.root.child("scripts").child("main." + lang);
+        if(main.exists() && !main.isDirectory()){
+             try{
+                 if(scripts == null){
+                      scripts = platform.createScripts();
+                 }
+                 scripts.run(lang, mod, main);
+             }catch(Throwable e){
+                 Core.app.post(() -> {
+                     Log.err("Error loading main script {0} for mod {1}.", main.name(), mod.meta.name);
+                     e.printStackTrace();
+                 });
+             }
+        }else{
+            Core.app.post(() -> {
+                Log.err("No main.{0} found for mod {1}.", lang, mod.meta.name);
+            });
+        }
+    }
+
     /** This must be run on the main thread! */
     public void loadScripts(){
         Time.mark();
@@ -459,26 +482,8 @@ public class Mods implements Loadable{
             eachEnabled(mod -> {
                 if(mod.root.child("scripts").exists()){
                     content.setCurrentMod(mod);
-                    //if there's only one script file, use it (for backwards compatibility); if there isn't, use "main.js"
-                    Array<Fi> allScripts = mod.root.child("scripts").findAll(f -> f.extEquals("js"));
-                    Fi main = allScripts.size == 1 ? allScripts.first() : mod.root.child("scripts").child("main.js");
-                    if(main.exists() && !main.isDirectory()){
-                        try{
-                            if(scripts == null){
-                                scripts = platform.createScripts();
-                            }
-                            scripts.run(mod, main);
-                        }catch(Throwable e){
-                            Core.app.post(() -> {
-                                Log.err("Error loading main script {0} for mod {1}.", main.name(), mod.meta.name);
-                                e.printStackTrace();
-                            });
-                        }
-                    }else{
-                        Core.app.post(() -> {
-                            Log.err("No main.js found for mod {0}.", mod.meta.name);
-                        });
-                    }
+                    loadScripts(mod, "js");
+                    loadScripts(mod, "lua");
                 }
             });
         }finally{

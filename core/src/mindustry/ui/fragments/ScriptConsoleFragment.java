@@ -164,7 +164,7 @@ public class ScriptConsoleFragment extends Table{
         history.insert(1, message);
 
         addMessage("[lightgray]> " + message.replace("[", "[["));
-        addMessage(mods.getScripts().runConsole(message).replace("[", "[["));
+        addMessage(mods.getScripts().runConsoleJs(message).replace("[", "[["));
     }
 
     public void toggle(){

@@ -55,16 +55,20 @@ public class ScriptStubGenerator{
         classes.distinct();
         ObjectSet<String> used = ObjectSet.with();
 
-        StringBuilder result = new StringBuilder("//Generated class. Do not modify.\n");
-        result.append("\n").append(new Fi("core/assets/scripts/base.js").readString()).append("\n");
+        StringBuilder resultJs = new StringBuilder("// Generated class. Do not modify.\n");
+        StringBuilder resultLua = new StringBuilder("-- Generated class. Do not modify.\n");
+        resultJs.append("\n").append(new Fi("core/assets/scripts/base.js").readString()).append("\n");
+        resultLua.append("\n").append(new Fi("core/assets/scripts/base.lua").readString()).append("\n");
         for(Class type : classes){
             if(used.contains(type.getPackage().getName()) || nopackage.contains(s -> type.getName().startsWith(s))) continue;
-            result.append("importPackage(Packages.").append(type.getPackage().getName()).append(")\n");
+            resultJs.append("importPackage(Packages.").append(type.getPackage().getName()).append(")\n");
+            resultLua.append("require('").append(type.getPackage().getName()).append("')\n");
             used.add(type.getPackage().getName());
         }
 
         //Log.info(result);
 
-        new Fi("core/assets/scripts/global.js").writeString(result.toString());
+        new Fi("core/assets/scripts/global.js").writeString(resultJs.toString());
+        new Fi("core/assets/scripts/global.lua").writeString(resultLua.toString());
     }
 }

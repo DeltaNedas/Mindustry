@@ -7,6 +7,8 @@ import arc.util.*;
 import arc.util.Log.*;
 import mindustry.*;
 import mindustry.mod.Mods.*;
+import org.luaj.vm2.*;
+import org.luaj.vm2.lib.jse.*;
 import org.mozilla.javascript.*;
 import org.mozilla.javascript.commonjs.module.*;
 import org.mozilla.javascript.commonjs.module.provider.*;
@@ -24,10 +26,12 @@ public class Scripts implements Disposable{
     private Scriptable scope;
     private boolean errored;
     private LoadedMod currentMod = null;
+    private Globals luaGlobals;
 
     public Scripts(){
         Time.mark();
 
+        // Initialise Rhino
         context = Vars.platform.getScriptContext();
         context.setClassShutter(type -> !blacklist.contains(type.toLowerCase()::contains) || whitelist.contains(type.toLowerCase()::contains));
         context.getWrapFactory().setJavaPrimitiveWrap(false);
@@ -38,9 +42,20 @@ public class Scripts implements Disposable{
             .setModuleScriptProvider(new SoftCachingModuleScriptProvider(new ScriptModuleProvider()))
             .setSandboxed(true).createRequire(context, scope).install(scope);
 
-        if(!run(Core.files.internal("scripts/global.js").readString(), "global.js")){
+        // Initialise LuaJ
+        luaGlobals = new Globals();
+        luaGlobals.load(new JseBaseLib());
+        luaGlobals.load(new PackageLib());
+        luaGlobals.load(new Bit32Lib());
+        luaGlobals.load(new TableLib());
+        luaGlobals.load(new JseStringLib());
+        luaGlobals.load(new JseMathLib());
+
+        if(!(run("js", Core.files.internal("scripts/global.js").readString(), "global.js")){
+            && run("lua", Core.files.internal("scripts/global.lua").readString(), "global.lua"))){
             errored = true;
         }
+
         Log.debug("Time to load script engine: {0}", Time.elapsed());
     }
 
@@ -48,16 +63,22 @@ public class Scripts implements Disposable{
         return errored;
     }
 
-    public String runConsole(String text){
+    public String runConsole(String lang, String text){
         try{
-            Object o = context.evaluateString(scope, text, "console.js", 1, null);
-            if(o instanceof NativeJavaObject){
-                o = ((NativeJavaObject)o).unwrap();
+            if (lang == "js") {
+                Object o = context.evaluateString(scope, text, "console.js", 1, null);
+                if(o instanceof NativeJavaObject){
+                     o = ((NativeJavaObject)o).unwrap();
+                }
+                if(o instanceof Undefined){
+                    o = "undefined";
+                }
+                return String.valueOf(o);
+            }else{
+                LuaValue chunk = luaGlobals.load(text);
+                Varargs ret = chunk.call();
+                return String.valueOf(ret);
             }
-            if(o instanceof Undefined){
-                o = "undefined";
-            }
-            return String.valueOf(o);
         }catch(Throwable t){
             return getError(t);
         }
@@ -78,17 +99,24 @@ public class Scripts implements Disposable{
 
     public void run(LoadedMod mod, Fi file){
         currentMod = mod;
-        run(file.readString(), file.name());
+	run(file.extension(), file.readString(), file.name());
         currentMod = null;
     }
 
-    private boolean run(String script, String file){
+    private boolean run(String lang, String script, String file){
         try{
-            if(currentMod != null){
-                //inject script info into file (TODO maybe rhino handles this?)
-                context.evaluateString(scope, "modName = \"" + currentMod.name + "\"\nscriptName = \"" + file + "\"", "initscript.js", 1, null);
+            if(lang == "js"){
+                if(currentMod != null){
+                    //inject script info into file (TODO maybe rhino handles this?)
+                    context.evaluateString(scope, "modName = \"" + currentMod.name + "\"\nscriptName = \"" + file + "\"", "initscript.js", 1, null);
+                }
+                context.evaluateString(scope, script, file, 1, null);
+            }else{
+                if(currentMod != null){
+                    luaGlobals.load("modName = '" + currentMod.name + "'")).call();
+                }
+                luaGlobals.load(script).call();
             }
-            context.evaluateString(scope, script, file, 1, null);
             return true;
         }catch(Throwable t){
             log(LogLevel.err, file, "" + getError(t));
@@ -99,6 +127,7 @@ public class Scripts implements Disposable{
     @Override
     public void dispose(){
         Context.exit();
+        // dispose lua globals
     }
 
     private class ScriptModuleProvider extends UrlModuleSourceProvider{
