@@ -939,12 +939,9 @@ public class Blocks implements ContentList{
             bufferCapacity = 14;
         }};
 
-        phaseConveyor = new ItemBridge("phase-conveyor"){{
+        phaseConveyor = new PhaseBridge("phase-conveyor"){{
             requirements(Category.distribution, ItemStack.with(Items.phasefabric, 5, Items.silicon, 7, Items.lead, 10, Items.graphite, 10));
             range = 12;
-            canOverdrive = false;
-            hasPower = true;
-            consumes.power(0.30f);
         }};
 
         sorter = new Sorter("sorter"){{
@@ -1059,12 +1056,9 @@ public class Blocks implements ContentList{
             hasPower = false;
         }};
 
-        phaseConduit = new LiquidBridge("phase-conduit"){{
+        phaseConduit = new PhaseConduit("phase-conduit"){{
             requirements(Category.liquid, ItemStack.with(Items.phasefabric, 5, Items.silicon, 7, Items.metaglass, 20, Items.titanium, 10));
             range = 12;
-            hasPower = true;
-            canOverdrive = false;
-            consumes.power(0.30f);
         }};
 
         //endregion
