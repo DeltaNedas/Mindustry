@@ -32,7 +32,7 @@ public class PhaseBridge extends ItemBridge{
     }
 
     public class PhaseBridgeEntity extends ItemBridgeEntity{
-        public Color color = defaultColor;
+        public Color color = new Color(defaultColor);
 
         @Override
         public void draw(){
