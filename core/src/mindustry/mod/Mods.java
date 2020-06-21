@@ -45,7 +45,12 @@ public class Mods implements Loadable{
 
     public Mods(){
         Events.on(ClientLoadEvent.class, e -> Core.app.post(this::checkWarnings));
-        Events.on(ContentReloadEvent.class, e -> Core.app.post(this::checkWarnings));
+        Events.on(ContentReloadEvent.class, e -> {
+            for(LoadedMod mod : mods){
+                mod.alreadyLoaded = true;
+            }
+            Core.app.post(this::checkWarnings);
+        });
     }
 
     /** Returns a file named 'config.json' in a special folder for the specified plugin.
@@ -690,6 +695,9 @@ public class Mods implements Loadable{
         public ModState state = ModState.enabled;
         /** Icon texture. Should be disposed. */
         public @Nullable Texture iconTexture;
+		/** False if Mindustry is loading or the mod has been enabled
+            for the first time in this session. */
+        public boolean alreadyLoaded = false;
 
         public LoadedMod(Fi file, Fi root, Mod main, ModMeta meta){
             this.root = root;
