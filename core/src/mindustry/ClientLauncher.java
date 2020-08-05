@@ -36,6 +36,7 @@ public abstract class ClientLauncher extends ApplicationCore implements Platform
         loader = new LoadRenderer();
         Events.fire(new ClientCreateEvent());
 
+		loadLogger();
         loadFileLogger();
         platform = this;
         beginTime = Time.millis();
