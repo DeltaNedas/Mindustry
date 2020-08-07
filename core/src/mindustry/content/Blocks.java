@@ -81,10 +81,10 @@ public class Blocks implements ContentList{
     repairPoint, resupplyPoint,
 
     //campaign
-    launchPad, launchPadLarge, dataProcessor,
+    launchPad, launchPadLarge,
 
     //misc experimental
-    blockForge, blockLoader, blockUnloader;
+    logicProcessor, blockForge, blockLoader, blockUnloader;
 
     @Override
     public void load(){
@@ -501,8 +501,8 @@ public class Blocks implements ContentList{
         siliconCrucible = new AttributeSmelter("silicon-crucible"){{
             requirements(Category.crafting, with(Items.titanium, 120, Items.metaglass, 80, Items.plastanium, 35, Items.silicon, 60));
             craftEffect = Fx.smeltsmoke;
-            outputItem = new ItemStack(Items.silicon, 5);
-            craftTime = 140f;
+            outputItem = new ItemStack(Items.silicon, 6);
+            craftTime = 90f;
             size = 3;
             hasPower = true;
             hasLiquids = false;
@@ -1883,15 +1883,15 @@ public class Blocks implements ContentList{
             consumes.power(6f);
         }};
 
-        dataProcessor = new ResearchBlock("data-processor"){{
-            //requirements(Category.effect, BuildVisibility.campaignOnly, with(Items.copper, 200, Items.lead, 100));
+        //endregion campaign
+        //region experimental
+
+        logicProcessor = new ResearchBlock("logic-processor"){{
+            requirements(Category.effect, BuildVisibility.debugOnly, with(Items.copper, 200, Items.lead, 100));
 
             size = 3;
             alwaysUnlocked = true;
         }};
-
-        //endregion campaign
-        //region experimental
 
         blockForge = new BlockForge("block-forge"){{
             requirements(Category.production, BuildVisibility.debugOnly, with(Items.thorium, 100));
