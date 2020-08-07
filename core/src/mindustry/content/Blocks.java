@@ -18,6 +18,7 @@ import mindustry.world.blocks.environment.*;
 import mindustry.world.blocks.experimental.*;
 import mindustry.world.blocks.legacy.*;
 import mindustry.world.blocks.liquid.*;
+import mindustry.world.blocks.logic.*;
 import mindustry.world.blocks.power.*;
 import mindustry.world.blocks.production.*;
 import mindustry.world.blocks.sandbox.*;
@@ -1502,7 +1503,7 @@ public class Blocks implements ContentList{
             health = 160 * size * size;
             rotateSpeed = 10;
 
-            consumes.power(3f);
+            consumes.powerCond(3f, (TractorBeamEntity e) -> e.target != null);
         }};
 
         swarmer = new ItemTurret("swarmer"){{
@@ -1886,7 +1887,7 @@ public class Blocks implements ContentList{
         //endregion campaign
         //region experimental
 
-        logicProcessor = new ResearchBlock("logic-processor"){{
+        logicProcessor = new LogicProcessor("logic-processor"){{
             requirements(Category.effect, BuildVisibility.debugOnly, with(Items.copper, 200, Items.lead, 100));
 
             size = 3;
