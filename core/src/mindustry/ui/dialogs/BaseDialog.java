@@ -44,7 +44,7 @@ public class BaseDialog extends Dialog{
         this(title, Core.scene.getStyle(DialogStyle.class));
     }
 
-    protected void onResize(Runnable run){
+    public void onResize(Runnable run){
         Events.on(ResizeEvent.class, event -> {
             if(isShown() && Core.scene.getDialog() == this){
                 run.run();

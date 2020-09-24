@@ -11,7 +11,7 @@ import mindustry.ui.dialogs.*;
 import static mindustry.Vars.*;
 
 public class LogicDialog extends BaseDialog{
-    LCanvas canvas;
+    public LCanvas canvas;
     Cons<String> consumer = s -> {};
 
     public LogicDialog(){

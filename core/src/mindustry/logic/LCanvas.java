@@ -22,11 +22,11 @@ public class LCanvas extends Table{
     //ew static variables
     static LCanvas canvas;
 
-    DragLayout statements;
-    StatementElem dragging;
-    ScrollPane pane;
-    Group jumps;
-    float targetWidth;
+    public DragLayout statements;
+    public StatementElem dragging;
+    public ScrollPane pane;
+    public Group jumps;
+    public float targetWidth;
 
     public LCanvas(){
         canvas = this;
@@ -70,18 +70,18 @@ public class LCanvas extends Table{
         }
     }
 
-    void add(LStatement statement){
+    public void add(LStatement statement){
         statements.addChild(new StatementElem(statement));
     }
 
-    String save(){
+    public String save(){
         Seq<LStatement> st = statements.getChildren().<StatementElem>as().map(s -> s.st);
         st.each(LStatement::saveUI);
 
         return LAssembler.write(st);
     }
 
-    void load(String asm){
+    public void load(String asm){
         jumps.clear();
 
         Seq<LStatement> statements = LAssembler.read(asm);
@@ -113,10 +113,10 @@ public class LCanvas extends Table{
     }
 
     public class DragLayout extends WidgetGroup{
-        float space = Scl.scl(10f), prefWidth, prefHeight;
-        Seq<Element> seq = new Seq<>();
-        int insertPosition = 0;
-        boolean invalidated;
+        public float space = Scl.scl(10f), prefWidth, prefHeight;
+        public Seq<Element> seq = new Seq<>();
+        public int insertPosition = 0;
+        public boolean invalidated;
 
         {
             setTransform(true);
@@ -213,7 +213,7 @@ public class LCanvas extends Table{
             }
         }
 
-        void finishLayout(){
+        public void finishLayout(){
             if(dragging != null){
                 //reset translation first
                 for(Element child : getChildren()){
@@ -240,7 +240,7 @@ public class LCanvas extends Table{
     }
 
     public class StatementElem extends Table{
-        LStatement st;
+        public LStatement st;
 
         public StatementElem(LStatement st){
             this.st = st;
@@ -320,7 +320,7 @@ public class LCanvas extends Table{
             marginBottom(7);
         }
 
-        void copy(){
+        public void copy(){
             LStatement copy = st.copy();
             if(copy != null){
                 StatementElem s = new StatementElem(copy);
@@ -346,15 +346,15 @@ public class LCanvas extends Table{
     }
 
     public static class JumpButton extends ImageButton{
-        Color hoverColor = Pal.place;
-        Color defaultColor = Color.white;
-        @NonNull Prov<StatementElem> to;
-        boolean selecting;
-        float mx, my;
-        ClickListener listener;
-        StatementElem hovered;
+        public Color hoverColor = Pal.place;
+        public Color defaultColor = Color.white;
+        public @NonNull Prov<StatementElem> to;
+        public boolean selecting;
+        public float mx, my;
+        public ClickListener listener;
+        public StatementElem hovered;
 
-        JumpCurve curve;
+        public JumpCurve curve;
 
         public JumpButton(@NonNull Prov<StatementElem> getter, Cons<StatementElem> setter){
             super(Tex.logicNode, Styles.colori);
@@ -422,7 +422,7 @@ public class LCanvas extends Table{
             }
         }
 
-        StatementElem hovered(){
+        public StatementElem hovered(){
             Element e = Core.scene.hit(Core.input.mouseX(), Core.input.mouseY(), true);
             if(e != null){
                 while(e != null && !(e instanceof StatementElem)){
@@ -435,7 +435,7 @@ public class LCanvas extends Table{
     }
 
     public static class JumpCurve extends Element{
-        JumpButton button;
+        public JumpButton button;
 
         public JumpCurve(JumpButton button){
             this.button = button;
@@ -484,7 +484,7 @@ public class LCanvas extends Table{
             }
         }
 
-        void drawCurve(float x, float y, float x2, float y2){
+        public void drawCurve(float x, float y, float x2, float y2){
             Lines.stroke(4f, button.color);
             Draw.alpha(parentAlpha);
 
@@ -495,8 +495,7 @@ public class LCanvas extends Table{
             x + dist, y,
             x2 + dist, y2,
             x2, y2,
-            Math.max(20, (int)(Mathf.dst(x, y, x2, y2) / 6))
-            );
+            Math.max(20, (int)(Mathf.dst(x, y, x2, y2) / 6)));
         }
     }
 }
