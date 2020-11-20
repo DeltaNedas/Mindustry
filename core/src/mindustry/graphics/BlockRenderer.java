@@ -42,7 +42,6 @@ public class BlockRenderer implements Disposable{
     private boolean displayStatus = false;
 
     public BlockRenderer(){
-
         Events.on(ClientLoadEvent.class, e -> {
             cracks = new TextureRegion[maxCrackSize][crackRegions];
             for(int size = 1; size <= maxCrackSize; size++){
@@ -74,24 +73,7 @@ public class BlockRenderer implements Disposable{
             Draw.color();
             shadows.end();
 
-            dark.getTexture().setFilter(TextureFilter.linear, TextureFilter.linear);
-            dark.resize(world.width(), world.height());
-            dark.begin();
-            Core.graphics.clear(Color.white);
-            Draw.proj().setOrtho(0, 0, dark.getWidth(), dark.getHeight());
-
-            for(Tile tile : world.tiles){
-                float darkness = world.getDarkness(tile.x, tile.y);
-
-                if(darkness > 0){
-                    Draw.color(0f, 0f, 0f, Math.min((darkness + 0.5f) / 4f, 1f));
-                    Fill.rect(tile.x + 0.5f, tile.y + 0.5f, 1, 1);
-                }
-            }
-
-            Draw.flush();
-            Draw.color();
-            dark.end();
+            resetDarkness();
         });
 
         Events.on(TileChangeEvent.class, event -> {
@@ -298,8 +280,80 @@ public class BlockRenderer implements Disposable{
                 }
             }
         }
+    }
 
+    /** Fully create the map's darkness when loading a map. */
+    public void resetDarkness(){
+        dark.getTexture().setFilter(TextureFilter.linear, TextureFilter.linear);
+        dark.resize(world.width(), world.height());
+        dark.begin();
+        Core.graphics.clear(Color.white);
+        Draw.proj().setOrtho(0, 0, dark.getWidth(), dark.getHeight());
+        for(Tile tile : world.tiles){
+            updateDarknessTile(tile.x, tile.y);
+        }
 
+        Draw.flush();
+        Draw.color();
+        dark.end();
+    }
+
+    /** Updates a rectangular region of the map's darkness.
+        You should ensure that the area includes semi-dark tiles too. */
+    public void updateDarkness(int x1, int y1, int x2, int y2){
+		//ignore parts outside the map
+		x1 = Mathf.clamp(x1, 0, dark.getWidth());
+		x2 = Mathf.clamp(x2, x1, dark.getWidth());
+		y1 = Mathf.clamp(y1, 0, dark.getHeight());
+		y2 = Mathf.clamp(y2, y1, dark.getHeight());
+
+        dark.begin();
+        Draw.proj().setOrtho(0, 0, dark.getWidth(), dark.getHeight());
+
+        //clear the old region first
+        Draw.color(Color.white);
+        Fill.rect(x1, y1, x2 - x1, y2 - y1);
+
+        //then add the new darkness
+        for(int x = x1; x <= x2; x++){
+            for(int y = y1; y <= y2; y++){
+                updateDarknessTile(x, y);
+            }
+        }
+
+        Draw.flush();
+        Draw.color();
+        dark.end();
+    }
+
+    /** Updates a circle of the map's darkness.
+        You should ensure that the circle includes semi-dark tiles. */
+    public void updateDarkness(int cx, int cy, int radius){
+        dark.begin();
+        Draw.proj().setOrtho(0, 0, dark.getWidth(), dark.getHeight());
+
+        //clear the old region first
+        Draw.color(Color.white);
+        Fill.circle(x, y, radius);
+
+        //then add the new darkness
+        Geometry.circle(cx, cy, radius, (x, y) -> {
+            if(x >= 0 && x < dark.getWidth() && y >= 0 && y <= dark.getHeight()){
+                updateDarknessTile(x, y);
+            }
+        });
+
+        Draw.flush();
+        Draw.color();
+        dark.end();
+    }
+
+    private void updateDarknessTile(int x, int y){
+        float darkness = world.getDarkness(x, y);
+        if(darkness > 0f){
+            Draw.color(0f, 0f, 0f, Math.min((darkness + 0.5f) / 4f, 1));
+            Fill.rect(x + 0.5f, y + 0.5f, 1, 1);
+        }
     }
 
     @Override
