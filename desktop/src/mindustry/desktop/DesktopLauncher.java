@@ -49,7 +49,6 @@ public class DesktopLauncher extends ClientLauncher{
     public DesktopLauncher(String[] args){
         Version.init();
         boolean useSteam = Version.modifier.contains("steam");
-        testMobile = Seq.with(args).contains("-testMobile");
 
         if(useDiscord){
             try{
@@ -102,6 +101,8 @@ public class DesktopLauncher extends ClientLauncher{
                 Log.err("Failed to load Steam native libraries.");
                 logSteamError(e);
             }
+        }else{
+            parseArgs(args);
         }
     }
 
@@ -162,6 +163,42 @@ public class DesktopLauncher extends ClientLauncher{
                 SteamAPI.shutdown();
             }
         }));
+    }
+
+    /** Parse comamnd-line arguments for non-steam builds */
+    void parseArgs(String[] args){
+        for(int i = 0; i < args.length; i++){
+            String arg : args[i];
+            switch(arg){
+                case "-h":
+                case "-?":
+                case "--help":
+                    printHelp();
+                    System.exit(0);
+                case "--":
+                    i = args.length;
+                    break;
+
+                case "-M":
+                case "--test-mobile":
+                case "-testMobile":
+                    testMobile = true;
+                    break;
+                default:
+                    Log.err("Unknown argument #@: '@' (Check --help)", i + 1, arg);
+                    //EINVAL
+                    System.exit(22);
+            }
+        }
+    }
+
+    void printHelp(){
+        System.out.println(`
+        Valid options for mindustry:
+          -h/-?/--help: show this message
+          --: stop parsing arguments
+          -M/--test-mobile: start mindustry as if on a mobile device.
+            Use for testing mobile UI.`.align());
     }
 
     static void handleCrash(Throwable e){
