@@ -14,6 +14,7 @@ import mindustry.*;
 import mindustry.mod.Mods.*;
 
 import org.luaj.vm2.*;
+import org.luaj.vm2.compiler.*;
 import org.luaj.vm2.lib.*;
 import org.luaj.vm2.lib.jse.*;
 import rhino.*;
@@ -53,6 +54,7 @@ public class Scripts implements Disposable{
 
         // Initialise LuaJ
         luaGlobals = new Globals();
+		LuaC.install(luaGlobals);
         // TODO: use custom require
         luaGlobals.load(new JseBaseLib());
         luaGlobals.load(new PackageLib());
@@ -62,8 +64,8 @@ public class Scripts implements Disposable{
         luaGlobals.load(new JseMathLib());
         luaGlobals.load(new LuajavaLib());
 
-        if(!(run("js", Core.files.internal("scripts/global.js").readString(), "global.js")
-            && run("lua", Core.files.internal("scripts/global.lua").readString(), "global.lua"))){
+        if(!(run("js", Core.files.internal("scripts/global.js").readString(), "global.js", false)
+            && run("lua", Core.files.internal("scripts/global.lua").readString(), "global.lua", false))){
             errored = true;
         }
 
@@ -76,15 +78,15 @@ public class Scripts implements Disposable{
 
     public String runConsole(String lang, String text){
         try{
-            if (lang == "js") {
-                Object o = context.evaluateString(scope, text, "console.js", 1, null);
+			Object o;
+            if("js".equals(lang)) {
+                o = context.evaluateString(scope, text, "console.js", 1, null);
                 if(o instanceof NativeJavaObject n) o = n.unwrap();
                 if(o instanceof Undefined) o = "undefined";
-                return String.valueOf(o);
-            }
-            LuaValue chunk = luaGlobals.load(text);
-            Varargs ret = chunk.call();
-            return String.valueOf(ret);
+            } else {
+	            o = luaGlobals.load(text, "console.lua").call();
+			}
+            return String.valueOf(o);
         }catch(Throwable t){
             return getError(t, false);
         }
@@ -181,25 +183,34 @@ public class Scripts implements Disposable{
 
     public void run(LoadedMod mod, Fi file){
         currentMod = mod;
-        run(file.extension(), file.readString(), file.name());
+        run(file.extension(), file.readString(), file.name(), true);
         currentMod = null;
     }
 
-    private boolean run(String lang, String script, String file){
+    private boolean run(String lang, String script, String file, boolean wrap){
         try{
-            if(lang == "js"){
+			Log.info("Run @ with lang @", file, lang);
+            if("js".equals(lang)){
                 if(currentMod != null){
                     //inject script info into file (TODO maybe rhino handles this?)
                     context.evaluateString(scope, "modName = \"" + currentMod.name + "\"\nscriptName = \"" + file + "\"", "initscript.js", 1, null);
                 }
-                context.evaluateString(scope, "(function(){'use strict';\n" + script + "\n})()", file, 0, null);
+                context.evaluateString(scope, wrap ? "(function(){'use strict';\n" + script + "\n})()" : script, file, 0, null);
             }else{
                 if(currentMod != null){
                     //inject local script info into file
                     script = "local modName = '" + currentMod.name + "'\n"
-                        + "\nlocal scriptName = '" + file + "'\n" + script;
+                        + "local scriptName = '" + file + "'\n"
+						+ "local function print(...)\n"
+						+ "\tlocal args = {...}\n"
+						+ "\tfor i, arg in ipairs(args) do\n"
+						+ "\t\targs[i] = tostring(arg)\n"
+						+ "\tend\n"
+						+ "\tlog(modName .. '/' .. scriptName, table.concat(args))\n"
+						+ "end\n"
+						+ script;
                 }
-                luaGlobals.load(script).call();
+                luaGlobals.load(script, file).call();
             }
             return true;
         }catch(Throwable t){

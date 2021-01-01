@@ -422,6 +422,8 @@ public class Mods implements Loadable{
     void loadScripts(LoadedMod mod, String lang){
         //if there's only one script file, use it (for backwards compatibility); if there isn't, use "main.<lang>"
         Seq<Fi> allScripts = mod.root.child("scripts").findAll(f -> f.extEquals(lang));
+		if(allScripts.isEmpty()) return;
+		Log.warn("Find @ scripts with lang @ for mod @", allScripts.size, lang, mod.meta.name);
         Fi main = allScripts.size == 1 ? allScripts.first() : mod.root.child("scripts").child("main." + lang);
         if(main.exists() && !main.isDirectory()){
              try{
@@ -453,8 +455,6 @@ public class Mods implements Loadable{
                     content.setCurrentMod(mod);
                     loadScripts(mod, "js");
                     loadScripts(mod, "lua");
-                            Core.app.post(() -> {
-                            });
                 }
             });
         }finally{
