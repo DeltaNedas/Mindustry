@@ -1,23 +1,71 @@
 package mindustry.io;
 
-import arc.struct.ObjectMap;
-import arc.struct.ObjectMap.Entry;
-import arc.struct.StringMap;
-import arc.util.io.CounterInputStream;
-import arc.util.io.ReusableByteOutStream;
-import mindustry.world.WorldContext;
+import arc.struct.*;
+import arc.struct.ObjectMap.*;
+import arc.util.*;
+import arc.util.io.*;
+import mindustry.world.*;
 
 import java.io.*;
 
 public abstract class SaveFileReader{
+    public static final ObjectMap<String, String> fallback = ObjectMap.of(
+    "dart-mech-pad", "legacy-mech-pad",
+    "dart-ship-pad", "legacy-mech-pad",
+    "javelin-ship-pad", "legacy-mech-pad",
+    "trident-ship-pad", "legacy-mech-pad",
+    "glaive-ship-pad", "legacy-mech-pad",
+    "alpha-mech-pad", "legacy-mech-pad",
+    "tau-mech-pad", "legacy-mech-pad",
+    "omega-mech-pad", "legacy-mech-pad",
+    "delta-mech-pad", "legacy-mech-pad",
+
+    "draug-factory", "legacy-unit-factory",
+    "spirit-factory", "legacy-unit-factory",
+    "phantom-factory", "legacy-unit-factory",
+    "wraith-factory", "legacy-unit-factory",
+    "ghoul-factory", "legacy-unit-factory-air",
+    "revenant-factory", "legacy-unit-factory-air",
+    "dagger-factory", "legacy-unit-factory",
+    "crawler-factory", "legacy-unit-factory",
+    "titan-factory", "legacy-unit-factory-ground",
+    "fortress-factory", "legacy-unit-factory-ground",
+
+    "mass-conveyor", "payload-conveyor",
+    "vestige", "scepter",
+    "turbine-generator", "steam-generator",
+
+    "rocks", "stone-wall",
+    "sporerocks", "spore-wall",
+    "icerocks", "ice-wall",
+    "dunerocks", "dune-wall",
+    "sandrocks", "sand-wall",
+    "shalerocks", "shale-wall",
+    "snowrocks", "snow-wall",
+    "saltrocks", "salt-wall",
+    "dirtwall", "dirt-wall",
+
+    "ignarock", "basalt",
+    "holostone", "dacite",
+    "holostone-wall", "dacite-wall",
+    "rock", "boulder",
+    "snowrock", "snow-boulder",
+    "cliffs", "stone-wall", 
+
+    "cryofluidmixer", "cryofluid-mixer"
+    );
+
     protected final ReusableByteOutStream byteOutput = new ReusableByteOutStream();
     protected final DataOutputStream dataBytes = new DataOutputStream(byteOutput);
     protected final ReusableByteOutStream byteOutputSmall = new ReusableByteOutStream();
     protected final DataOutputStream dataBytesSmall = new DataOutputStream(byteOutputSmall);
-    protected final ObjectMap<String, String> fallback = ObjectMap.of();
 
-    protected void region(String name, DataInput stream, CounterInputStream counter, IORunner<DataInput> cons) throws IOException{
+    protected int lastRegionLength;
+    protected @Nullable CounterInputStream currCounter;
+
+    public void region(String name, DataInput stream, CounterInputStream counter, IORunner<DataInput> cons) throws IOException{
         counter.resetCount();
+        this.currCounter = counter;
         int length;
         try{
             length = readChunk(stream, cons);
@@ -25,12 +73,12 @@ public abstract class SaveFileReader{
             throw new IOException("Error reading region \"" + name + "\".", e);
         }
 
-        if(length != counter.count() - 4){
-            throw new IOException("Error reading region \"" + name + "\": read length mismatch. Expected: " + length + "; Actual: " + (counter.count() - 4));
+        if(length != counter.count - 4){
+            throw new IOException("Error reading region \"" + name + "\": read length mismatch. Expected: " + length + "; Actual: " + (counter.count - 4));
         }
     }
 
-    protected void region(String name, DataOutput stream, IORunner<DataOutput> cons) throws IOException{
+    public void region(String name, DataOutput stream, IORunner<DataOutput> cons) throws IOException{
         try{
             writeChunk(stream, cons);
         }catch(Throwable e){
@@ -67,18 +115,19 @@ public abstract class SaveFileReader{
     }
 
     /** Reads a chunk of some length. Use the runner for reading to catch more descriptive errors. */
-    public int readChunk(DataInput input, boolean isByte, IORunner<DataInput> runner) throws IOException{
-        int length = isByte ? input.readUnsignedShort() : input.readInt();
+    public int readChunk(DataInput input, boolean isShort, IORunner<DataInput> runner) throws IOException{
+        int length = isShort ? input.readUnsignedShort() : input.readInt();
+        lastRegionLength = length;
         runner.accept(input);
         return length;
     }
 
-    public void skipRegion(DataInput input) throws IOException{
-        skipRegion(input, false);
+    public void skipChunk(DataInput input) throws IOException{
+        skipChunk(input, false);
     }
 
-    /** Skip a region completely. */
-    public void skipRegion(DataInput input, boolean isByte) throws IOException{
+    /** Skip a chunk completely, discarding the bytes. */
+    public void skipChunk(DataInput input, boolean isByte) throws IOException{
         int length = readChunk(input, isByte, t -> {});
         int skipped = input.skipBytes(length);
         if(length != skipped){
@@ -107,7 +156,7 @@ public abstract class SaveFileReader{
 
     public abstract void write(DataOutputStream stream) throws IOException;
 
-    protected interface IORunner<T>{
+    public interface IORunner<T>{
         void accept(T stream) throws IOException;
     }
 }

@@ -1,9 +1,13 @@
 package mindustry.core;
 
 import arc.*;
-import mindustry.entities.type.*;
+import arc.util.*;
 import mindustry.game.EventType.*;
 import mindustry.game.*;
+import mindustry.gen.*;
+import mindustry.maps.*;
+import mindustry.type.*;
+import mindustry.world.blocks.*;
 
 import static mindustry.Vars.*;
 
@@ -13,11 +17,15 @@ public class GameState{
     /** Wave countdown in ticks. */
     public float wavetime;
     /** Whether the game is in game over state. */
-    public boolean gameOver = false, launched = false;
+    public boolean gameOver = false, serverPaused = false, wasTimeout;
+    /** Map that is currently being played on. */
+    public Map map = emptyMap;
     /** The current game rules. */
     public Rules rules = new Rules();
     /** Statistics for this save/game. Displayed after game over. */
-    public Stats stats = new Stats();
+    public GameStats stats = new GameStats();
+    /** Global attributes of the environment, calculated by weather. */
+    public Attributes envAttrs = new Attributes();
     /** Team data. Gets reset every new game. */
     public Teams teams = new Teams();
     /** Number of enemies in the game; only used clientside in servers. */
@@ -25,13 +33,34 @@ public class GameState{
     /** Current game state. */
     private State state = State.menu;
 
-    public BaseUnit boss(){
-        return unitGroup.find(u -> u.isBoss() && u.getTeam() == rules.waveTeam);
+    public Unit boss(){
+        return teams.boss;
     }
 
     public void set(State astate){
+        //cannot pause when in multiplayer
+        if(astate == State.paused && net.active()) return;
+
         Events.fire(new StateChangeEvent(state, astate));
         state = astate;
+    }
+
+    public boolean hasSpawns(){
+        return rules.waves && !(isCampaign() && rules.attackMode);
+    }
+
+    /** Note that being in a campaign does not necessarily mean having a sector. */
+    public boolean isCampaign(){
+        return rules.sector != null;
+    }
+
+    public boolean hasSector(){
+        return rules.sector != null;
+    }
+
+    @Nullable
+    public Sector getSector(){
+        return rules.sector;
     }
 
     public boolean isEditor(){
@@ -39,7 +68,20 @@ public class GameState{
     }
 
     public boolean isPaused(){
-        return (is(State.paused) && !net.active()) || (gameOver && !net.active());
+        return (is(State.paused) && !net.active()) || (gameOver && (!net.active() || isCampaign())) || (serverPaused && !isMenu());
+    }
+
+    public boolean isPlaying(){
+        return (state == State.playing) || (state == State.paused && !isPaused());
+    }
+
+    /** @return whether the current state is *not* the menu. */
+    public boolean isGame(){
+        return state != State.menu;
+    }
+
+    public boolean isMenu(){
+        return state == State.menu;
     }
 
     public boolean is(State astate){

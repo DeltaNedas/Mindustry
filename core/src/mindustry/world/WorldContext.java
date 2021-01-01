@@ -3,7 +3,7 @@ package mindustry.world;
 public interface WorldContext{
 
     /** Return a tile in the tile array.*/
-    Tile tile(int x, int y);
+    Tile tile(int index);
 
     /** Create the tile array.*/
     void resize(int width, int height);
@@ -19,5 +19,8 @@ public interface WorldContext{
 
     /** End generating, prepares tiles.*/
     void end();
+
+    /** Called when a building is finished reading. */
+    default void onReadBuilding(){}
 
 }

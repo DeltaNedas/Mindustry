@@ -1,9 +1,10 @@
 package mindustry.world.blocks.sandbox;
 
-import mindustry.world.Tile;
-import mindustry.world.blocks.power.PowerNode;
+import mindustry.world.blocks.power.*;
 
 public class PowerSource extends PowerNode{
+
+    public float powerProduction = 10000f;
 
     public PowerSource(String name){
         super(name);
@@ -12,9 +13,11 @@ public class PowerSource extends PowerNode{
         consumesPower = false;
     }
 
-    @Override
-    public float getPowerProduction(Tile tile){
-        return 10000f;
+    public class PowerSourceBuild extends PowerNodeBuild{
+        @Override
+        public float getPowerProduction(){
+            return enabled ? powerProduction : 0f;
+        }
     }
 
 }

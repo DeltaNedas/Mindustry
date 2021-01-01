@@ -1,13 +1,14 @@
 package mindustry.ui.dialogs;
 
 import arc.*;
-import arc.struct.*;
 import arc.files.*;
 import arc.func.*;
 import arc.graphics.g2d.*;
+import arc.input.*;
 import arc.scene.event.*;
 import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
+import arc.struct.*;
 import arc.util.*;
 import arc.util.pooling.*;
 import mindustry.gen.*;
@@ -15,14 +16,12 @@ import mindustry.ui.*;
 
 import java.util.*;
 
-import static mindustry.Vars.platform;
-
-public class FileChooser extends FloatingDialog{
+public class FileChooser extends BaseDialog{
     private static final Fi homeDirectory = Core.files.absolute(Core.files.getExternalStoragePath());
-    private static Fi lastDirectory = homeDirectory;
+    static Fi lastDirectory = Core.files.absolute(Core.settings.getString("lastDirectory", homeDirectory.absolutePath()));
 
     private Table files;
-    private Fi directory = lastDirectory;
+    Fi directory = lastDirectory;
     private ScrollPane pane;
     private TextField navigation, filefield;
     private TextButton ok;
@@ -47,6 +46,12 @@ public class FileChooser extends FloatingDialog{
             cont.clear();
             setupWidgets();
         });
+
+        keyDown(KeyCode.enter, () -> {
+            ok.fireClick();
+        });
+
+        addCloseListener();
     }
 
     private void setupWidgets(){
@@ -56,10 +61,10 @@ public class FileChooser extends FloatingDialog{
 
         filefield = new TextField();
         filefield.setOnlyFontChars(false);
-        if(!open) platform.addDialog(filefield);
+        if(!open) filefield.addInputDialog();
         filefield.setDisabled(open);
 
-        ok = new TextButton(open ? "$load" : "$save");
+        ok = new TextButton(open ? "@load" : "@save");
 
         ok.clicked(() -> {
             if(ok.isDisabled()) return;
@@ -74,11 +79,11 @@ public class FileChooser extends FloatingDialog{
 
         filefield.change();
 
-        TextButton cancel = new TextButton("$cancel");
+        TextButton cancel = new TextButton("@cancel");
         cancel.clicked(this::hide);
 
         navigation = new TextField("");
-        navigation.touchable(Touchable.disabled);
+        navigation.touchable = Touchable.disabled;
 
         files = new Table();
         files.marginRight(10);
@@ -110,7 +115,7 @@ public class FileChooser extends FloatingDialog{
         ImageButton home = new ImageButton(Icon.home);
         home.clicked(() -> {
             directory = homeDirectory;
-            lastDirectory = directory;
+            setLastDirectory(directory);
             updateFiles(true);
         });
 
@@ -121,7 +126,7 @@ public class FileChooser extends FloatingDialog{
         icontable.add(up);
 
         Table fieldcontent = new Table();
-        fieldcontent.bottom().left().add(new Label("$filename"));
+        fieldcontent.bottom().left().add(new Label("@filename"));
         fieldcontent.add(filefield).height(40f).fillX().expandX().padLeft(10f);
 
         Table buttons = new Table();
@@ -165,7 +170,7 @@ public class FileChooser extends FloatingDialog{
         return handles;
     }
 
-    private void updateFiles(boolean push){
+    void updateFiles(boolean push){
         if(push) stack.push(directory);
         navigation.setText(directory.toString());
 
@@ -189,7 +194,7 @@ public class FileChooser extends FloatingDialog{
         TextButton upbutton = new TextButton(".." + directory.toString(), Styles.clearTogglet);
         upbutton.clicked(() -> {
             directory = directory.parent();
-            lastDirectory = directory;
+            setLastDirectory(directory);
             updateFiles(true);
         });
 
@@ -199,7 +204,6 @@ public class FileChooser extends FloatingDialog{
 
         files.add(upbutton).align(Align.topLeft).fillX().expandX().height(50).pad(2).colspan(2);
         files.row();
-
 
         ButtonGroup<TextButton> group = new ButtonGroup<>();
         group.setMinCheckCount(0);
@@ -220,7 +224,7 @@ public class FileChooser extends FloatingDialog{
                     updateFileFieldStatus();
                 }else{
                     directory = directory.child(filename);
-                    lastDirectory = directory;
+                    setLastDirectory(directory);
                     updateFiles(true);
                 }
             });
@@ -245,6 +249,11 @@ public class FileChooser extends FloatingDialog{
         if(open) filefield.clearText();
     }
 
+    public static void setLastDirectory(Fi directory){
+        lastDirectory = directory;
+        Core.settings.put("lastDirectory", directory.absolutePath());
+    }
+
     private String shorten(String string){
         int max = 30;
         if(string.length() <= max){
@@ -255,7 +264,7 @@ public class FileChooser extends FloatingDialog{
     }
 
     public class FileHistory{
-        private Array<Fi> history = new Array<>();
+        private Seq<Fi> history = new Seq<>();
         private int index;
 
         public FileHistory(){
@@ -272,14 +281,14 @@ public class FileChooser extends FloatingDialog{
             if(!canBack()) return;
             index--;
             directory = history.get(index - 1);
-            lastDirectory = directory;
+            setLastDirectory(directory);
             updateFiles(false);
         }
 
         public void forward(){
             if(!canForward()) return;
             directory = history.get(index);
-            lastDirectory = directory;
+            setLastDirectory(directory);
             index++;
             updateFiles(false);
         }

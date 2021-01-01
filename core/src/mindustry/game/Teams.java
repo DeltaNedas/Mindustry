@@ -2,11 +2,19 @@ package mindustry.game;
 
 import arc.func.*;
 import arc.math.geom.*;
+import arc.struct.Queue;
 import arc.struct.*;
-import arc.util.ArcAnnotate.*;
 import arc.util.*;
-import mindustry.entities.type.*;
+import mindustry.*;
+import mindustry.ai.*;
+import mindustry.content.*;
+import mindustry.entities.units.*;
+import mindustry.gen.*;
+import mindustry.type.*;
+import mindustry.world.blocks.payloads.*;
 import mindustry.world.blocks.storage.CoreBlock.*;
+
+import java.util.*;
 
 import static mindustry.Vars.*;
 
@@ -15,36 +23,34 @@ public class Teams{
     /** Maps team IDs to team data. */
     private TeamData[] map = new TeamData[256];
     /** Active teams. */
-    private Array<TeamData> active = new Array<>();
+    public Seq<TeamData> active = new Seq<>();
+    /** Teams with block or unit presence. */
+    public Seq<TeamData> present = new Seq<>(TeamData.class);
+    /** Current boss unit. */
+    public @Nullable Unit boss;
 
     public Teams(){
         active.add(get(Team.crux));
     }
 
-    public @Nullable CoreEntity closestEnemyCore(float x, float y, Team team){
-        for(TeamData data : active){
-            if(areEnemies(team, data.team)){
-                CoreEntity tile = Geometry.findClosest(x, y, data.cores);
-                if(tile != null){
-                    return tile;
-                }
-            }
+    @Nullable
+    public CoreBuild closestEnemyCore(float x, float y, Team team){
+        for(Team enemy : team.data().coreEnemies){
+            CoreBuild tile = Geometry.findClosest(x, y, enemy.cores());
+            if(tile != null) return tile;
         }
         return null;
     }
 
-    public @Nullable CoreEntity closestCore(float x, float y, Team team){
+    @Nullable
+    public CoreBuild closestCore(float x, float y, Team team){
         return Geometry.findClosest(x, y, get(team).cores);
     }
 
-    public Array<Team> enemiesOf(Team team){
-        return get(team).enemies;
-    }
-
-    public boolean eachEnemyCore(Team team, Boolf<CoreEntity> ret){
+    public boolean eachEnemyCore(Team team, Boolf<CoreBuild> ret){
         for(TeamData data : active){
             if(areEnemies(team, data.team)){
-                for(CoreEntity tile : data.cores){
+                for(CoreBuild tile : data.cores){
                     if(ret.get(tile)){
                         return true;
                     }
@@ -54,10 +60,10 @@ public class Teams{
         return false;
     }
 
-    public void eachEnemyCore(Team team, Cons<TileEntity> ret){
+    public void eachEnemyCore(Team team, Cons<Building> ret){
         for(TeamData data : active){
             if(areEnemies(team, data.team)){
-                for(TileEntity tile : data.cores){
+                for(Building tile : data.cores){
                     ret.get(tile);
                 }
             }
@@ -66,18 +72,16 @@ public class Teams{
 
     /** Returns team data by type. */
     public TeamData get(Team team){
-        if(map[Pack.u(team.id)] == null){
-            map[Pack.u(team.id)] = new TeamData(team);
-        }
-        return map[Pack.u(team.id)];
+        if(map[team.id] == null) map[team.id] = new TeamData(team);
+        return map[team.id];
     }
 
-    public Array<CoreEntity> playerCores(){
+    public Seq<CoreBuild> playerCores(){
         return get(state.rules.defaultTeam).cores;
     }
 
     /** Do not modify! */
-    public Array<CoreEntity> cores(Team team){
+    public Seq<CoreBuild> cores(Team team){
         return get(team).cores;
     }
 
@@ -97,13 +101,13 @@ public class Teams{
     }
 
     /** Do not modify. */
-    public Array<TeamData> getActive(){
+    public Seq<TeamData> getActive(){
         active.removeAll(t -> !t.active());
         return active;
     }
 
-    public void registerCore(CoreEntity core){
-        TeamData data = get(core.getTeam());
+    public void registerCore(CoreBuild core){
+        TeamData data = get(core.team);
         //add core if not present
         if(!data.cores.contains(core)){
             data.cores.add(core);
@@ -117,8 +121,8 @@ public class Teams{
         }
     }
 
-    public void unregisterCore(CoreEntity entity){
-        TeamData data = get(entity.getTeam());
+    public void unregisterCore(CoreBuild entity){
+        TeamData data = get(entity.team);
         //remove core
         data.cores.remove(entity);
         //unregister in active list
@@ -128,29 +132,157 @@ public class Teams{
         }
     }
 
+    private void count(Unit unit){
+        unit.team.data().updateCount(unit.type, 1);
+
+        if(unit instanceof Payloadc payloadc){
+            payloadc.payloads().each(p -> {
+                if(p instanceof UnitPayload payload){
+                    count(payload.unit);
+                }
+            });
+        }
+    }
+
+    public void updateTeamStats(){
+        present.clear();
+        boss = null;
+
+        for(Team team : Team.all){
+            TeamData data = team.data();
+
+            data.presentFlag = false;
+            data.unitCount = 0;
+            data.units.clear();
+            if(data.tree != null){
+                data.tree.clear();
+            }
+
+            if(data.typeCounts != null){
+                Arrays.fill(data.typeCounts, 0);
+            }
+
+            //clear old unit records
+            if(data.unitsByType != null){
+                for(int i = 0; i < data.unitsByType.length; i++){
+                    if(data.unitsByType[i] != null){
+                        data.unitsByType[i].clear();
+                    }
+                }
+            }
+        }
+
+        //update presence flag.
+        Groups.build.each( b -> b.team.data().presentFlag = true);
+
+        for(Unit unit : Groups.unit){
+            TeamData data = unit.team.data();
+            data.tree().insert(unit);
+            data.units.add(unit);
+            data.presentFlag = true;
+
+            if(unit.team == state.rules.waveTeam && unit.isBoss()){
+                boss = unit;
+            }
+
+            if(data.unitsByType == null || data.unitsByType.length <= unit.type.id){
+                data.unitsByType = new Seq[content.units().size];
+            }
+
+            if(data.unitsByType[unit.type.id] == null){
+                data.unitsByType[unit.type.id] = new Seq<>();
+            }
+
+            data.unitsByType[unit.type.id].add(unit);
+
+            count(unit);
+        }
+
+        //update presence of each team.
+        for(Team team : Team.all){
+            TeamData data = team.data();
+
+            if(data.presentFlag || data.active()){
+                present.add(data);
+            }
+        }
+    }
+
     private void updateEnemies(){
         if(state.rules.waves && !active.contains(get(state.rules.waveTeam))){
             active.add(get(state.rules.waveTeam));
         }
 
         for(TeamData data : active){
-            data.enemies.clear();
+            Seq<Team> enemies = new Seq<>();
+
             for(TeamData other : active){
                 if(areEnemies(data.team, other.team)){
-                    data.enemies.add(other.team);
+                    enemies.add(other.team);
                 }
             }
+
+            data.coreEnemies = enemies.toArray(Team.class);
         }
     }
 
-    public class TeamData{
-        public final Array<CoreEntity> cores = new Array<>();
-        public final Array<Team> enemies = new Array<>();
+    public static class TeamData{
+        public final Seq<CoreBuild> cores = new Seq<>();
         public final Team team;
-        public Queue<BrokenBlock> brokenBlocks = new Queue<>();
+        public final BaseAI ai;
+
+        private boolean presentFlag;
+
+        /** Enemies with cores or spawn points. */
+        public Team[] coreEnemies = {};
+        /** Planned blocks for drones. This is usually only blocks that have been broken. */
+        public Queue<BlockPlan> blocks = new Queue<>();
+        /** The current command for units to follow. */
+        public UnitCommand command = UnitCommand.attack;
+        /** Target items to mine. */
+        public Seq<Item> mineItems = Seq.with(Items.copper, Items.lead, Items.titanium, Items.thorium);
+
+        /** Total unit count. */
+        public int unitCount;
+        /** Counts for each type of unit. Do not access directly. */
+        @Nullable
+        public int[] typeCounts;
+        /** Quadtree for units of this type. Do not access directly. */
+        @Nullable
+        public QuadTree<Unit> tree;
+        /** Units of this team. Updated each frame. */
+        public Seq<Unit> units = new Seq<>();
+        /** Units of this team by type. Updated each frame. */
+        @Nullable
+        public Seq<Unit>[] unitsByType;
 
         public TeamData(Team team){
             this.team = team;
+            this.ai = new BaseAI(this);
+        }
+
+        @Nullable
+        public Seq<Unit> unitCache(UnitType type){
+            if(unitsByType == null || unitsByType.length <= type.id || unitsByType[type.id] == null) return null;
+            return unitsByType[type.id];
+        }
+
+        public void updateCount(UnitType type, int amount){
+            if(type == null) return;
+            unitCount = Math.max(amount + unitCount, 0);
+            if(typeCounts == null || typeCounts.length <= type.id){
+                typeCounts  = new int[Vars.content.units().size];
+            }
+            typeCounts[type.id] = Math.max(amount + typeCounts[type.id], 0);
+        }
+
+        public QuadTree<Unit> tree(){
+            if(tree == null) tree = new QuadTree<>(Vars.world.getQuadBounds(new Rect()));
+            return tree;
+        }
+
+        public int countType(UnitType type){
+            return typeCounts == null || typeCounts.length <= type.id ? 0 : typeCounts[type.id];
         }
 
         public boolean active(){
@@ -165,8 +297,14 @@ public class Teams{
             return cores.isEmpty();
         }
 
-        public CoreEntity core(){
-            return cores.first();
+        @Nullable
+        public CoreBuild core(){
+            return cores.isEmpty() ? null : cores.first();
+        }
+
+        /** @return whether this team is controlled by the AI and builds bases. */
+        public boolean hasAI(){
+            return team.rules().ai;
         }
 
         @Override
@@ -180,13 +318,13 @@ public class Teams{
 
     /** Represents a block made by this team that was destroyed somewhere on the map.
      * This does not include deconstructed blocks.*/
-    public static class BrokenBlock{
+    public static class BlockPlan{
         public final short x, y, rotation, block;
-        public final int config;
+        public final Object config;
 
-        public BrokenBlock(short x, short y, short rotation, short block, int config){
-            this.x = x;
-            this.y = y;
+        public BlockPlan(int x, int y, short rotation, short block, Object config){
+            this.x = (short)x;
+            this.y = (short)y;
             this.rotation = rotation;
             this.block = block;
             this.config = config;

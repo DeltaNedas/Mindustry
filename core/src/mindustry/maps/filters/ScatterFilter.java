@@ -1,18 +1,18 @@
 package mindustry.maps.filters;
 
-import mindustry.content.Blocks;
-import mindustry.maps.filters.FilterOption.BlockOption;
-import mindustry.maps.filters.FilterOption.SliderOption;
-import mindustry.world.Block;
+import arc.util.*;
+import mindustry.content.*;
+import mindustry.world.*;
 
 import static mindustry.maps.filters.FilterOption.*;
 
 public class ScatterFilter extends GenerateFilter{
-    protected float chance = 0.014f;
+    protected float chance = 0.013f;
     protected Block flooronto = Blocks.air, floor = Blocks.air, block = Blocks.air;
 
-    {
-        options(
+    @Override
+    public FilterOption[] options(){
+        return Structs.arr(
         new SliderOption("chance", () -> chance, f -> chance = f, 0f, 1f),
         new BlockOption("flooronto", () -> flooronto, b -> flooronto = b, floorsOptional),
         new BlockOption("floor", () -> floor, b -> floor = b, floorsOptional),
@@ -27,7 +27,7 @@ public class ScatterFilter extends GenerateFilter{
             if(!block.isOverlay()){
                 in.block = block;
             }else{
-                in.ore = block;
+                in.overlay = block;
             }
         }
 

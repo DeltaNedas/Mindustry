@@ -4,18 +4,28 @@ package mindustry.world.meta;
 public enum BlockFlag{
     /** Enemy core; primary target for all units. */
     core,
-    /** Rally point for units.*/
-    rally,
-    /** Producer of important goods. */
-    producer,
-    /** A turret. */
+    /** Vault/container/etc */
+    storage,
+    /** Something that generates power. */
+    generator,
+    /** Any turret. */
     turret,
-    /** Only the command center block.*/
-    comandCenter,
+    /** A block that transforms resources. */
+    factory,
     /** Repair point. */
     repair,
-    /** Upgrade pad. */
-    mechPad;
+    /** Rally point. */
+    rally,
+    /** Block that stored power for resupply. */
+    battery,
+    /** Block used for resupply. */
+    resupply,
+    /** Any reactor block. */
+    reactor,
+    /** Any block that boosts unit capacity. */
+    unitModifier,
+    /** Blocks that extinguishes fires. */
+    extinguisher;
 
     public final static BlockFlag[] all = values();
 }

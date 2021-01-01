@@ -1,11 +1,14 @@
 package mindustry.type;
 
-import arc.struct.Array;
-import mindustry.content.Items;
+import arc.math.*;
+import arc.struct.*;
+import mindustry.content.*;
 
 public class ItemStack implements Comparable<ItemStack>{
+    public static final ItemStack[] empty = {};
+
     public Item item;
-    public int amount = 1;
+    public int amount = 0;
 
     public ItemStack(Item item, int amount){
         if(item == null) item = Items.copper;
@@ -19,6 +22,12 @@ public class ItemStack implements Comparable<ItemStack>{
         item = Items.copper;
     }
 
+    public ItemStack set(Item item, int amount){
+        this.item = item;
+        this.amount = amount;
+        return this;
+    }
+
     public ItemStack copy(){
         return new ItemStack(item, amount);
     }
@@ -27,10 +36,10 @@ public class ItemStack implements Comparable<ItemStack>{
         return other != null && other.item == item && other.amount == amount;
     }
 
-    public static ItemStack[] mult(ItemStack[] stacks, int amount){
+    public static ItemStack[] mult(ItemStack[] stacks, float amount){
         ItemStack[] copy = new ItemStack[stacks.length];
         for(int i = 0; i < copy.length; i++){
-            copy[i] = new ItemStack(stacks[i].item, stacks[i].amount * amount);
+            copy[i] = new ItemStack(stacks[i].item, Mathf.round(stacks[i].amount * amount));
         }
         return copy;
     }
@@ -43,8 +52,8 @@ public class ItemStack implements Comparable<ItemStack>{
         return stacks;
     }
 
-    public static Array<ItemStack> list(Object... items){
-        Array<ItemStack> stacks = new Array<>(items.length / 2);
+    public static Seq<ItemStack> list(Object... items){
+        Seq<ItemStack> stacks = new Seq<>(items.length / 2);
         for(int i = 0; i < items.length; i += 2){
             stacks.add(new ItemStack((Item)items[i], ((Number)items[i + 1]).intValue()));
         }
@@ -54,6 +63,13 @@ public class ItemStack implements Comparable<ItemStack>{
     @Override
     public int compareTo(ItemStack itemStack){
         return item.compareTo(itemStack.item);
+    }
+
+    @Override
+    public boolean equals(Object o){
+        if(this == o) return true;
+        if(!(o instanceof ItemStack stack)) return false;
+        return amount == stack.amount && item == stack.item;
     }
 
     @Override

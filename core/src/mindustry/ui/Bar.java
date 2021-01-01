@@ -21,7 +21,7 @@ public class Bar extends Element{
 
     public Bar(String name, Color color, Floatp fraction){
         this.fraction = fraction;
-        this.name = Core.bundle.get(name);
+        this.name = Core.bundle.get(name, name);
         this.blinkColor.set(color);
         lastValue = value = fraction.get();
         setColor(color);
@@ -29,11 +29,19 @@ public class Bar extends Element{
 
     public Bar(Prov<String> name, Prov<Color> color, Floatp fraction){
         this.fraction = fraction;
-        lastValue = value = Mathf.clamp(fraction.get());
+        try{
+            lastValue = value = Mathf.clamp(fraction.get());
+        }catch(Exception e){ //getting the fraction may involve referring to invalid data
+            lastValue = value = 0f;
+        }
         update(() -> {
-            this.name = name.get();
-            this.blinkColor.set(color.get());
-            setColor(color.get());
+            try{
+                this.name = name.get();
+                this.blinkColor.set(color.get());
+                setColor(color.get());
+            }catch(Exception e){ //getting the fraction may involve referring to invalid data
+                this.name = "";
+            }
         });
     }
 
@@ -62,11 +70,24 @@ public class Bar extends Element{
     public void draw(){
         if(fraction == null) return;
 
-        float computed = Mathf.clamp(fraction.get());
-        if(!Mathf.equal(lastValue, computed)){
+        float computed;
+        try{
+            computed = Mathf.clamp(fraction.get());
+        }catch(Exception e){ //getting the fraction may involve referring to invalid data
+            computed = 0f;
+        }
+
+        if(lastValue > computed){
             blink = 1f;
             lastValue = computed;
         }
+
+        if(Float.isNaN(lastValue)) lastValue = 0;
+        if(Float.isInfinite(lastValue)) lastValue = 1f;
+        if(Float.isNaN(value)) value = 0;
+        if(Float.isInfinite(value)) value = 1f;
+        if(Float.isNaN(computed)) computed = 0;
+        if(Float.isInfinite(computed)) computed = 1f;
 
         blink = Mathf.lerpDelta(blink, 0f, 0.2f);
         value = Mathf.lerpDelta(value, computed, 0.15f);
@@ -80,18 +101,18 @@ public class Bar extends Element{
         Drawable top = Tex.barTop;
         float topWidth = width * value;
 
-        if(topWidth > Core.atlas.find("bar-top").getWidth()){
+        if(topWidth > Core.atlas.find("bar-top").width){
             top.draw(x, y, topWidth, height);
         }else{
-            if(ScissorStack.pushScissors(scissor.set(x, y, topWidth, height))){
-                top.draw(x, y, Core.atlas.find("bar-top").getWidth(), height);
-                ScissorStack.popScissors();
+            if(ScissorStack.push(scissor.set(x, y, topWidth, height))){
+                top.draw(x, y, Core.atlas.find("bar-top").width, height);
+                ScissorStack.pop();
             }
         }
 
         Draw.color();
 
-        BitmapFont font = Fonts.outline;
+        Font font = Fonts.outline;
         GlyphLayout lay = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
         lay.setText(font, name);
 

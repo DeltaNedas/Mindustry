@@ -1,6 +1,5 @@
 package mindustry;
 
-import arc.Application.*;
 import arc.*;
 import arc.assets.*;
 import arc.files.*;
@@ -9,38 +8,42 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.Log.*;
-import arc.util.io.*;
 import mindustry.ai.*;
+import mindustry.async.*;
 import mindustry.core.*;
 import mindustry.entities.*;
-import mindustry.entities.effect.*;
-import mindustry.entities.traits.*;
-import mindustry.entities.type.*;
-import mindustry.game.*;
 import mindustry.game.EventType.*;
+import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.input.*;
+import mindustry.io.*;
+import mindustry.logic.*;
+import mindustry.maps.Map;
 import mindustry.maps.*;
 import mindustry.mod.*;
 import mindustry.net.Net;
 import mindustry.net.*;
-import mindustry.world.blocks.defense.ForceProjector.*;
+import mindustry.world.*;
 
 import java.io.*;
 import java.nio.charset.*;
 import java.util.*;
 
-import static arc.Core.settings;
+import static arc.Core.*;
 
 public class Vars implements Loadable{
     /** Whether to load locales.*/
     public static boolean loadLocales = true;
     /** Whether the logger is loaded. */
     public static boolean loadedLogger = false, loadedFileLogger = false;
+    /** Whether to enable various experimental features (e.g. cliffs) */
+    public static boolean experimental = false;
+    /** Maximum extra padding around deployment schematics. */
+    public static final int maxLoadoutSchematicPad = 5;
     /** Maximum schematic size.*/
     public static final int maxSchematicSize = 32;
     /** All schematic base64 starts with this string.*/
-    public static final String schematicBaseStart ="bXNjaAB";
+    public static final String schematicBaseStart ="bXNjaA";
     /** IO buffer size. */
     public static final int bufferSize = 8192;
     /** global charset, since Android doesn't support the Charsets class */
@@ -54,35 +57,55 @@ public class Vars implements Loadable{
     /** URL for sending crash reports to */
     public static final String crashReportURL = "http://192.99.169.18/report";
     /** URL the links to the wiki's modding guide.*/
-    public static final String modGuideURL = "https://mindustrygame.github.io/wiki/modding/";
+    public static final String modGuideURL = "https://mindustrygame.github.io/wiki/modding/1-modding/";
     /** URL to the JSON file containing all the global, public servers. Not queried in BE. */
     public static final String serverJsonURL = "https://raw.githubusercontent.com/Anuken/Mindustry/master/servers.json";
     /** URL to the JSON file containing all the BE servers. Only queried in BE. */
     public static final String serverJsonBeURL = "https://raw.githubusercontent.com/Anuken/Mindustry/master/servers_be.json";
+    /** URL to the JSON file containing all the BE servers. Only queried in the V6 alpha (will be removed once it's out). */
+    public static final String serverJsonV6URL = "https://raw.githubusercontent.com/Anuken/Mindustry/master/servers_v6.json";
     /** URL of the github issue report template.*/
-    public static final String reportIssueURL = "https://github.com/Anuken/Mindustry/issues/new?template=bug_report.md";
+    public static final String reportIssueURL = "https://github.com/Anuken/Mindustry/issues/new?labels=bug&template=bug_report.md";
     /** list of built-in servers.*/
-    public static final Array<String> defaultServers = Array.with();
+    public static final Seq<ServerGroup> defaultServers = Seq.with();
+    /** maximum size of any block, do not change unless you know what you're doing */
+    public static final int maxBlockSize = 16;
     /** maximum distance between mine and core that supports automatic transferring */
     public static final float mineTransferRange = 220f;
-    /** whether to enable editing of units in the editor */
-    public static final boolean enableUnitEditing = false;
     /** max chat message length */
     public static final int maxTextLength = 150;
     /** max player name length in bytes */
     public static final int maxNameLength = 40;
-    /** displayed item size when ingame, TODO remove. */
+    /** displayed item size when ingame. */
     public static final float itemSize = 5f;
-    /** extra padding around the world; units outside this bound will begin to self-destruct. */
-    public static final float worldBounds = 100f;
-    /** units outside of this bound will simply die instantly */
-    public static final float finalWorldBounds = worldBounds + 500;
-    /** ticks spent out of bound until self destruct. */
-    public static final float boundsCountdown = 60 * 7;
-    /** for map generator dialog */
-    public static boolean updateEditorOnChange = false;
+    /** units outside of this bound will die instantly */
+    public static final float finalWorldBounds = 500;
+    /** mining range for manual miners */
+    public static final float miningRange = 70f;
+    /** range for building */
+    public static final float buildingRange = 220f;
+    /** range for moving items */
+    public static final float itemTransferRange = 220f;
+    /** range for moving items for logic units */
+    public static final float logicItemTransferRange = 45f;
+    /** duration of time between turns in ticks */
+    public static final float turnDuration = 2 * Time.toMinutes;
+    /** chance of an invasion per turn, 1 = 100% */
+    public static final float baseInvasionChance = 1f / 100f;
+    /** how many turns have to pass before invasions start */
+    public static final int invasionGracePeriod = 20;
+    /** min armor fraction damage; e.g. 0.05 = at least 5% damage */
+    public static final float minArmorDamage = 0.1f;
+    /** launch animation duration */
+    public static final float launchDuration = 140f;
     /** size of tiles in units */
     public static final int tilesize = 8;
+    /** size of one tile payload (^2) */
+    public static final float tilePayload = tilesize * tilesize;
+    /** tile used in certain situations, instead of null */
+    public static Tile emptyTile;
+    /** for map generator dialog */
+    public static boolean updateEditorOnChange = false;
     /** all choosable player colors in join/host dialog */
     public static final Color[] playerColors = {
         Color.valueOf("82759a"),
@@ -124,6 +147,13 @@ public class Vars implements Loadable{
     public static boolean steam;
     /** whether typing into the console is enabled - developers only */
     public static boolean enableConsole = false;
+    /** whether to clear sector saves when landing */
+    public static boolean clearSectors = false;
+    /** whether any light rendering is enabled */
+    public static boolean enableLight = true;
+    /** Whether to draw shadows of blocks at map edges and static blocks.
+     * Do not change unless you know exactly what you are doing.*/
+    public static boolean enableDarkness = true;
     /** application data directory, equivalent to {@link Settings#getDataDirectory()} */
     public static Fi dataDirectory;
     /** data subdirectory used for screenshots */
@@ -142,6 +172,8 @@ public class Vars implements Loadable{
     public static Fi schematicDirectory;
     /** data subdirectory used for bleeding edge build versions */
     public static Fi bebuildDirectory;
+    /** empty map, indicates no current map */
+    public static Map emptyMap;
     /** map file extension */
     public static final String mapExtension = "msav";
     /** save file extension */
@@ -152,19 +184,21 @@ public class Vars implements Loadable{
     /** list of all locales that can be switched to */
     public static Locale[] locales;
 
-    public static FileTree tree;
+    public static FileTree tree = new FileTree();
     public static Net net;
     public static ContentLoader content;
     public static GameState state;
-    public static GlobalData data;
     public static EntityCollisions collisions;
-    public static DefaultWaves defaultWaves;
-    public static LoopControl loops;
+    public static Waves waves;
     public static Platform platform = new Platform(){};
     public static Mods mods;
-    public static Schematics schematics = new Schematics();
+    public static Schematics schematics;
     public static BeControl becontrol;
+    public static AsyncCore asyncCore;
+    public static BaseRegistry bases;
+    public static GlobalConstants constants;
 
+    public static Universe universe;
     public static World world;
     public static Maps maps;
     public static WaveSpawner spawner;
@@ -178,17 +212,6 @@ public class Vars implements Loadable{
     public static NetServer netServer;
     public static NetClient netClient;
 
-    public static Entities entities;
-    public static EntityGroup<Player> playerGroup;
-    public static EntityGroup<TileEntity> tileGroup;
-    public static EntityGroup<Bullet> bulletGroup;
-    public static EntityGroup<EffectEntity> effectGroup;
-    public static EntityGroup<DrawTrait> groundEffectGroup;
-    public static EntityGroup<ShieldEntity> shieldGroup;
-    public static EntityGroup<Puddle> puddleGroup;
-    public static EntityGroup<Fire> fireGroup;
-    public static EntityGroup<BaseUnit> unitGroup;
-
     public static Player player;
 
     @Override
@@ -198,8 +221,7 @@ public class Vars implements Loadable{
     }
 
     public static void init(){
-        Serialization.init();
-        DefaultSerializers.typeMappings.put("mindustry.type.ContentType", "mindustry.ctype.ContentType");
+        Groups.init();
 
         if(loadLocales){
             //load locales
@@ -215,52 +237,12 @@ public class Vars implements Loadable{
             }
 
             Arrays.sort(locales, Structs.comparing(l -> l.getDisplayName(l), String.CASE_INSENSITIVE_ORDER));
+            locales = Seq.with(locales).and(new Locale("router")).toArray(Locale.class);
         }
 
         Version.init();
 
-        if(tree == null) tree = new FileTree();
-        if(mods == null) mods = new Mods();
-
-        content = new ContentLoader();
-        loops = new LoopControl();
-        defaultWaves = new DefaultWaves();
-        collisions = new EntityCollisions();
-        world = new World();
-        becontrol = new BeControl();
-
-        maps = new Maps();
-        spawner = new WaveSpawner();
-        indexer = new BlockIndexer();
-        pathfinder = new Pathfinder();
-
-        entities = new Entities();
-        playerGroup = entities.add(Player.class).enableMapping();
-        tileGroup = entities.add(TileEntity.class, false);
-        bulletGroup = entities.add(Bullet.class).enableMapping();
-        effectGroup = entities.add(EffectEntity.class, false);
-        groundEffectGroup = entities.add(DrawTrait.class, false);
-        puddleGroup = entities.add(Puddle.class).enableMapping();
-        shieldGroup = entities.add(ShieldEntity.class, false);
-        fireGroup = entities.add(Fire.class).enableMapping();
-        unitGroup = entities.add(BaseUnit.class).enableMapping();
-
-        for(EntityGroup<?> group : entities.all()){
-            group.setRemoveListener(entity -> {
-                if(entity instanceof SyncTrait && net.client()){
-                    netClient.addRemovedEntity((entity).getID());
-                }
-            });
-        }
-
-        state = new GameState();
-        data = new GlobalData();
-
-        mobile = Core.app.getType() == ApplicationType.Android || Core.app.getType() == ApplicationType.iOS || testMobile;
-        ios = Core.app.getType() == ApplicationType.iOS;
-        android = Core.app.getType() == ApplicationType.Android;
-
-        dataDirectory = Core.settings.getDataDirectory();
+        dataDirectory = settings.getDataDirectory();
         screenshotDirectory = dataDirectory.child("screenshots/");
         customMapDirectory = dataDirectory.child("maps/");
         mapPreviewDirectory = dataDirectory.child("previews/");
@@ -269,6 +251,32 @@ public class Vars implements Loadable{
         modDirectory = dataDirectory.child("mods/");
         schematicDirectory = dataDirectory.child("schematics/");
         bebuildDirectory = dataDirectory.child("be_builds/");
+        emptyMap = new Map(new StringMap());
+        emptyTile = null;
+
+        if(tree == null) tree = new FileTree();
+        if(mods == null) mods = new Mods();
+
+        content = new ContentLoader();
+        waves = new Waves();
+        collisions = new EntityCollisions();
+        world = new World();
+        universe = new Universe();
+        becontrol = new BeControl();
+        asyncCore = new AsyncCore();
+
+        maps = new Maps();
+        spawner = new WaveSpawner();
+        indexer = new BlockIndexer();
+        pathfinder = new Pathfinder();
+        bases = new BaseRegistry();
+        constants = new GlobalConstants();
+
+        state = new GameState();
+
+        mobile = Core.app.isMobile() || testMobile;
+        ios = Core.app.isIOS();
+        android = Core.app.isAndroid();
 
         modDirectory.mkdirs();
 
@@ -280,10 +288,10 @@ public class Vars implements Loadable{
         if(loadedLogger) return;
 
         String[] tags = {"[green][D][]", "[royal][I][]", "[yellow][W][]", "[scarlet][E][]", ""};
-        String[] stags = {"&lc&fb[D]", "&lg&fb[I]", "&ly&fb[W]", "&lr&fb[E]", ""};
+        String[] stags = {"&lc&fb[D]", "&lb&fb[I]", "&ly&fb[W]", "&lr&fb[E]", ""};
 
-        Array<String> logBuffer = new Array<>();
-        Log.setLogger((level, text) -> {
+        Seq<String> logBuffer = new Seq<>();
+        Log.logger = (level, text) -> {
             String result = text;
             String rawText = Log.format(stags[level.ordinal()] + "&fr " + text);
             System.out.println(rawText);
@@ -293,9 +301,15 @@ public class Vars implements Loadable{
             if(!headless && (ui == null || ui.scriptfrag == null)){
                 logBuffer.add(result);
             }else if(!headless){
-                ui.scriptfrag.addMessage(result);
+                if(!OS.isWindows){
+                    for(String code : ColorCodes.values){
+                        result = result.replace(code, "");
+                    }
+                }
+
+                ui.scriptfrag.addMessage(Log.removeColors(result));
             }
-        });
+        };
 
         Events.on(ClientLoadEvent.class, e -> logBuffer.each(ui.scriptfrag::addMessage));
 
@@ -305,35 +319,43 @@ public class Vars implements Loadable{
     public static void loadFileLogger(){
         if(loadedFileLogger) return;
 
-        Core.settings.setAppName(appName);
+        settings.setAppName(appName);
 
-        Writer writer = settings.getDataDirectory().child("last_log.txt").writer(false);
-        LogHandler log = Log.getLogger();
-        Log.setLogger(((level, text) -> {
-            log.log(level, text);
+        try{
+            Writer writer = settings.getDataDirectory().child("last_log.txt").writer(false);
+            LogHandler log = Log.logger;
+            //ignore it
+            Log.logger = (level, text) -> {
+                log.log(level, text);
 
-            try{
-                writer.write("[" + Character.toUpperCase(level.name().charAt(0)) +"] " + Log.removeCodes(text) + "\n");
-                writer.flush();
-            }catch(IOException e){
-                e.printStackTrace();
-                //ignore it
-            }
-        }));
+                try{
+                    writer.write("[" + Character.toUpperCase(level.name().charAt(0)) +"] " + Log.removeColors(text) + "\n");
+                    writer.flush();
+                }catch(IOException e){
+                    e.printStackTrace();
+                    //ignore it
+                }
+            };
+        }catch(Exception e){
+            //handle log file not being found
+            Log.err(e);
+        }
 
         loadedFileLogger = true;
     }
 
     public static void loadSettings(){
-        Core.settings.setAppName(appName);
+        settings.setJson(JsonIO.json());
+        settings.setAppName(appName);
 
         if(steam || (Version.modifier != null && Version.modifier.contains("steam"))){
-            Core.settings.setDataDirectory(Core.files.local("saves/"));
+            settings.setDataDirectory(Core.files.local("saves/"));
         }
 
-        Core.settings.defaults("locale", "default", "blocksync", true);
-        Core.keybinds.setDefaults(Binding.values());
-        Core.settings.load();
+        settings.defaults("locale", "default", "blocksync", true);
+        keybinds.setDefaults(Binding.values());
+        settings.setAutosave(false);
+        settings.load();
 
         Scl.setProduct(settings.getInt("uiscale", 100) / 100f);
 
@@ -356,7 +378,7 @@ public class Vars implements Loadable{
 
             Fi handle = Core.files.internal("bundles/bundle");
             Locale locale;
-            String loc = Core.settings.getString("locale");
+            String loc = settings.getString("locale");
             if(loc.equals("default")){
                 locale = Locale.getDefault();
             }else{
@@ -373,6 +395,11 @@ public class Vars implements Loadable{
 
             Locale.setDefault(locale);
             Core.bundle = I18NBundle.createBundle(handle, locale);
+
+            //router
+            if(locale.getDisplayName().equals("router")){
+                bundle.debug("router");
+            }
         }
     }
 }

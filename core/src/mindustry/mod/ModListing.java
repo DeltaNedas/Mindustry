@@ -2,7 +2,8 @@ package mindustry.mod;
 
 /** Mod listing as a data class. */
 public class ModListing{
-    public String repo, name, author, lastUpdated, description;
+    public String repo, name, author, lastUpdated, description, minGameVersion;
+    public boolean hasScripts, hasJava;
     public int stars;
 
     @Override
@@ -13,6 +14,9 @@ public class ModListing{
         ", author='" + author + '\'' +
         ", lastUpdated='" + lastUpdated + '\'' +
         ", description='" + description + '\'' +
+        ", minGameVersion='" + minGameVersion + '\'' +
+        ", hasScripts=" + hasScripts +
+        ", hasJava=" + hasJava +
         ", stars=" + stars +
         '}';
     }

@@ -1,21 +1,22 @@
 package mindustry.input;
 
 import arc.*;
-import arc.struct.*;
+import arc.func.*;
 import arc.math.*;
 import arc.math.geom.*;
+import arc.struct.*;
 import arc.util.pooling.*;
 import mindustry.world.*;
-
-import java.util.*;
+import mindustry.world.blocks.distribution.*;
 
 import static mindustry.Vars.*;
 
 public class Placement{
+    private final static Seq<Point2> tmpPoints = new Seq<>(), tmpPoints2 = new Seq<>();
     private static final NormalizeResult result = new NormalizeResult();
     private static final NormalizeDrawResult drawResult = new NormalizeDrawResult();
     private static Bresenham2 bres = new Bresenham2();
-    private static Array<Point2> points = new Array<>();
+    private static Seq<Point2> points = new Seq<>();
 
     //for pathfinding
     private static IntFloatMap costs = new IntFloatMap();
@@ -23,9 +24,8 @@ public class Placement{
     private static IntSet closed = new IntSet();
 
     /** Normalize a diagonal line into points. */
-    public static Array<Point2> pathfindLine(boolean conveyors, int startX, int startY, int endX, int endY){
+    public static Seq<Point2> pathfindLine(boolean conveyors, int startX, int startY, int endX, int endY){
         Pools.freeAll(points);
-
         points.clear();
         if(conveyors && Core.settings.getBool("conveyorpathfinding")){
             if(astar(startX, startY, endX, endY)){
@@ -39,7 +39,7 @@ public class Placement{
     }
 
     /** Normalize two points into one straight line, no diagonals. */
-    public static Array<Point2> normalizeLine(int startX, int startY, int endX, int endY){
+    public static Seq<Point2> normalizeLine(int startX, int startY, int endX, int endY){
         Pools.freeAll(points);
         points.clear();
         if(Math.abs(startX - endX) > Math.abs(startY - endY)){
@@ -54,6 +54,56 @@ public class Placement{
             }
         }
         return points;
+    }
+
+    public static Seq<Point2> upgradeLine(int startX, int startY, int endX, int endY){
+        closed.clear();
+        Pools.freeAll(points);
+        points.clear();
+        var build = world.build(startX, startY);
+        points.add(Pools.obtain(Point2.class, Point2::new).set(startX, startY));
+        while(build instanceof ChainedBuilding chain && (build.tile.x != endX || build.tile.y != endY) && closed.add(build.id)){
+            if(chain.next() == null) return pathfindLine(true, startX, startY, endX, endY);
+            build = chain.next();
+            points.add(Pools.obtain(Point2.class, Point2::new).set(build.tile.x, build.tile.y));
+        }
+        return points;
+    }
+
+    /** Calculates optimal node placement for nodes with spacing. Used for bridges and power nodes. */
+    public static void calculateNodes(Seq<Point2> points, Block block, int rotation, Boolf2<Point2, Point2> overlapper){
+        var base = tmpPoints2;
+        var result = tmpPoints.clear();
+
+        base.selectFrom(points, p -> p == points.first() || p == points.peek() || Build.validPlace(block, player.team(), p.x, p.y, rotation, false));
+        boolean addedLast = false;
+
+        outer:
+        for(int i = 0; i < base.size;){
+            var point = base.get(i);
+            result.add(point);
+            if(i == base.size - 1) addedLast = true;
+
+            //find the furthest node that overlaps this one
+            for(int j = base.size - 1; j > i; j--){
+                var other = base.get(j);
+                boolean over = overlapper.get(point, other);
+
+                if(over){
+                    //add node to list and start searching for node that overlaps the next one
+                    i = j;
+                    continue outer;
+                }
+            }
+
+            //if it got here, that means nothing was found. try to proceed to the next node anyway
+            i ++;
+        }
+
+        if(!addedLast) result.add(base.peek());
+
+        points.clear();
+        points.addAll(result);
     }
 
     private static float tileHeuristic(Tile tile, Tile other){
@@ -97,17 +147,17 @@ public class Placement{
         int nodeLimit = 1000;
         int totalNodes = 0;
 
-        PriorityQueue<Tile> queue = new PriorityQueue<>(10, (a, b) -> Float.compare(costs.get(a.pos(), 0f) + distanceHeuristic(a.x, a.y, end.x, end.y), costs.get(b.pos(), 0f) + distanceHeuristic(b.x, b.y, end.x, end.y)));
+        PQueue<Tile> queue = new PQueue<>(10, (a, b) -> Float.compare(costs.get(a.pos(), 0f) + distanceHeuristic(a.x, a.y, end.x, end.y), costs.get(b.pos(), 0f) + distanceHeuristic(b.x, b.y, end.x, end.y)));
         queue.add(start);
         boolean found = false;
-        while(!queue.isEmpty() && totalNodes++ < nodeLimit){
+        while(!queue.empty() && totalNodes++ < nodeLimit){
             Tile next = queue.poll();
             float baseCost = costs.get(next.pos(), 0f);
             if(next == end){
                 found = true;
                 break;
             }
-            closed.add(Pos.get(next.x, next.y));
+            closed.add(Point2.pack(next.x, next.y));
             for(Point2 point : Geometry.d4){
                 int newx = next.x + point.x, newy = next.y + point.y;
                 Tile child = world.tile(newx, newy);
@@ -129,11 +179,11 @@ public class Placement{
         Tile current = end;
         while(current != start && total++ < nodeLimit){
             if(current == null) return false;
-            int newPos = parents.get(current.pos(), Pos.invalid);
+            int newPos = parents.get(current.pos(), -1);
 
-            if(newPos == Pos.invalid) return false;
+            if(newPos == -1) return false;
 
-            points.add(Pools.obtain(Point2.class, Point2::new).set(Pos.x(newPos),  Pos.y(newPos)));
+            points.add(Pools.obtain(Point2.class, Point2::new).set(Point2.x(newPos), Point2.y(newPos)));
             current = world.tile(newPos);
         }
 
@@ -156,7 +206,7 @@ public class Placement{
     public static NormalizeDrawResult normalizeDrawArea(Block block, int startx, int starty, int endx, int endy, boolean snap, int maxLength, float scaling){
         normalizeArea(startx, starty, endx, endy, 0, snap, maxLength);
 
-        float offset = block.offset();
+        float offset = block.offset;
 
         drawResult.x = result.x * tilesize;
         drawResult.y = result.y * tilesize;
@@ -190,7 +240,6 @@ public class Placement{
      * @param maxLength maximum length of area
      */
     public static NormalizeResult normalizeArea(int tilex, int tiley, int endx, int endy, int rotation, boolean snap, int maxLength){
-
         if(snap){
             if(Math.abs(tilex - endx) > Math.abs(tiley - endy)){
                 endy = tiley;
@@ -244,43 +293,10 @@ public class Placement{
     }
 
     public static class NormalizeDrawResult{
-        float x, y, x2, y2;
+        public float x, y, x2, y2;
     }
 
     public static class NormalizeResult{
         public int x, y, x2, y2, rotation;
-
-        boolean isX(){
-            return Math.abs(x2 - x) > Math.abs(y2 - y);
-        }
-
-        /**
-         * Returns length of greater edge of the selection.
-         */
-        int getLength(){
-            return Math.max(x2 - x, y2 - y);
-        }
-
-        /**
-         * Returns the X position of a specific index along this area as a line.
-         */
-        int getScaledX(int i){
-            return x + (x2 - x > y2 - y ? i : 0);
-        }
-
-        /**
-         * Returns the Y position of a specific index along this area as a line.
-         */
-        int getScaledY(int i){
-            return y + (x2 - x > y2 - y ? 0 : i);
-        }
-    }
-
-    public interface DistanceHeuristic{
-        float cost(int x1, int y1, int x2, int y2);
-    }
-
-    public interface TileHueristic{
-        float cost(Tile tile, Tile other);
     }
 }

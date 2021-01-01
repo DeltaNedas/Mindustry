@@ -1,8 +1,5 @@
 [
   {
-    "address": "mindustry.us.to"
-  },
-  {
     "address": "mindustry.indielm.com:1101"
   },
   {
@@ -12,30 +9,54 @@
     "address": "mindustry.nydus.app:1337"
   },
   {
-    "address": "mindustry.ecansol.com:6597"
-  },
-  {
-    "address": "mindustry.ecansol.com:6499"
-  },
-  {
     "address": "mindustry.ru"
   },
   {
     "address": "mindustry.ru:7000"
   },
   {
-    "address": "mindustry.io"
-  },
-  {
-    "address": "mindustry.io:1000"
-  },
-  {
-    "address": "mindustry.io:2000"
-  },
-  {
-    "address": "mindustry.io:3000"
+    "address": "Mindustry.pl"
   },
   {
     "address": "aamindustry.play.ai"
+  },
+  {
+    "address": "aamindustry.play.ai:6568"
+  },
+  {
+    "address": "aamindustry.play.ai:6569"
+  },
+  {
+    "address": "aamindustry.play.ai:6570"
+  },
+  {
+    "address": "mindustry.atannergaming.com"
+  },
+  {
+    "address": "mindustry.atannergaming.com:7000"
+  },
+  {
+    "address": "mindustry.atannergaming.com:8000"
+  },
+  {
+    "address": "mindustry.atannergaming.com:6800"
+  },
+  {
+    "address": "mindustry.kbni.net.au:6567"
+  },
+  {
+    "address": "mindustry.kbni.net.au:6568"
+  },
+  {
+    "address": "twsmindustry.24x7.hk"
+  },
+  {
+    "address": "twsmindustry.24x7.hk:6568"
+  },
+  {
+    "address": "mindustryranked.ddns.net"
+  },
+  {
+    "address": "attack.pearkin.net"
   }
 ]

@@ -1,17 +1,14 @@
 package mindustry.world.consumers;
 
-import arc.struct.*;
 import arc.scene.ui.layout.*;
-import arc.util.ArcAnnotate.*;
-import mindustry.entities.type.*;
+import arc.struct.*;
+import mindustry.gen.*;
 import mindustry.type.*;
 import mindustry.ui.*;
-import mindustry.ui.Cicon;
-import mindustry.world.*;
 import mindustry.world.meta.*;
 
 public class ConsumeLiquid extends ConsumeLiquidBase{
-    public final @NonNull Liquid liquid;
+    public final Liquid liquid;
 
     public ConsumeLiquid(Liquid liquid, float amount){
         super(amount);
@@ -28,8 +25,8 @@ public class ConsumeLiquid extends ConsumeLiquidBase{
     }
 
     @Override
-    public void build(Tile tile, Table table){
-        table.add(new ReqImage(liquid.icon(Cicon.medium), () -> valid(tile.entity))).size(8 * 4);
+    public void build(Building tile, Table table){
+        table.add(new ReqImage(liquid.icon(Cicon.medium), () -> valid(tile))).size(8 * 4);
     }
 
     @Override
@@ -38,17 +35,17 @@ public class ConsumeLiquid extends ConsumeLiquidBase{
     }
 
     @Override
-    public void update(TileEntity entity){
+    public void update(Building entity){
         entity.liquids.remove(liquid, Math.min(use(entity), entity.liquids.get(liquid)));
     }
 
     @Override
-    public boolean valid(TileEntity entity){
+    public boolean valid(Building entity){
         return entity != null && entity.liquids != null && entity.liquids.get(liquid) >= use(entity);
     }
 
     @Override
-    public void display(BlockStats stats){
-        stats.add(booster ? BlockStat.booster : BlockStat.input, liquid, amount * timePeriod, timePeriod == 60);
+    public void display(Stats stats){
+        stats.add(booster ? Stat.booster : Stat.input, liquid, amount * 60f, true);
     }
 }

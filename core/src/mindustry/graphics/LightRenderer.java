@@ -1,31 +1,29 @@
 package mindustry.graphics;
 
 import arc.*;
-import arc.struct.*;
 import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.graphics.gl.*;
 import arc.math.*;
 import arc.math.geom.*;
+import arc.struct.*;
 import arc.util.*;
+import mindustry.*;
 
-import static mindustry.Vars.state;
+import static mindustry.Vars.*;
 
 /** Renders overlay lights. Client only. */
 public class LightRenderer{
     private static final int scaling = 4;
+
     private float[] vertices = new float[24];
-    private FrameBuffer buffer = new FrameBuffer(2, 2);
-    private Array<Runnable> lights = new Array<>();
+    private FrameBuffer buffer = new FrameBuffer();
+    private Seq<Runnable> lights = new Seq<>();
 
     public void add(Runnable run){
         if(!enabled()) return;
 
         lights.add(run);
-    }
-
-    public void add(Position pos, float radius, Color color, float opacity){
-        add(pos.getX(), pos.getY(), radius, color, opacity);
     }
 
     public void add(float x, float y, float radius, Color color, float opacity){
@@ -50,21 +48,20 @@ public class LightRenderer{
         });
     }
 
-    public void line(float x, float y, float x2, float y2){
+    public void line(float x, float y, float x2, float y2, float stroke, Color tint, float alpha){
         if(!enabled()) return;
 
         add(() -> {
-            Draw.color(Color.orange, 0.3f);
+            Draw.color(tint, alpha);
 
-            float stroke = 30f;
             float rot = Mathf.angleExact(x2 - x, y2 - y);
             TextureRegion ledge = Core.atlas.find("circle-end"), lmid = Core.atlas.find("circle-mid");
 
             float color = Draw.getColor().toFloatBits();
-            float u = lmid.getU();
-            float v = lmid.getV2();
-            float u2 = lmid.getU2();
-            float v2 = lmid.getV();
+            float u = lmid.u;
+            float v = lmid.v2;
+            float u2 = lmid.u2;
+            float v2 = lmid.v;
 
 
             Vec2 v1 = Tmp.v1.trnsExact(rot + 90f, stroke);
@@ -101,15 +98,14 @@ public class LightRenderer{
             vertices[22] = v;
             vertices[23] = 0;
 
-            Draw.vert(ledge.getTexture(), vertices, 0, vertices.length);
-
+            Draw.vert(ledge.texture, vertices, 0, vertices.length);
 
             Vec2 v3 = Tmp.v2.trnsExact(rot, stroke);
 
-            u = ledge.getU();
-            v = ledge.getV2();
-            u2 = ledge.getU2();
-            v2 = ledge.getV();
+            u = ledge.u;
+            v = ledge.v2;
+            u2 = ledge.u2;
+            v2 = ledge.v;
 
             vertices[0] = lx4;
             vertices[1] = ly4;
@@ -139,7 +135,7 @@ public class LightRenderer{
             vertices[22] = v;
             vertices[23] = 0;
 
-            Draw.vert(ledge.getTexture(), vertices, 0, vertices.length);
+            Draw.vert(ledge.texture, vertices, 0, vertices.length);
 
             vertices[0] = lx2;
             vertices[1] = ly2;
@@ -169,35 +165,36 @@ public class LightRenderer{
             vertices[22] = v;
             vertices[23] = 0;
 
-            Draw.vert(ledge.getTexture(), vertices, 0, vertices.length);
+            Draw.vert(ledge.texture, vertices, 0, vertices.length);
         });
     }
 
     public boolean enabled(){
-        return state.rules.lighting;
+        return state.rules.lighting && state.rules.ambientLight.a > 0.00001f;
     }
 
     public void draw(){
-        if(buffer.getWidth() != Core.graphics.getWidth()/scaling || buffer.getHeight() != Core.graphics.getHeight()/scaling){
-            buffer.resize(Core.graphics.getWidth()/scaling, Core.graphics.getHeight()/scaling);
+        if(!Vars.enableLight){
+            lights.clear();
+            return;
         }
 
+        buffer.resize(Core.graphics.getWidth()/scaling, Core.graphics.getHeight()/scaling);
+
         Draw.color();
-        buffer.beginDraw(Color.clear);
+        buffer.begin(Color.clear);
         Gl.blendEquationSeparate(Gl.funcAdd, Gl.max);
 
         for(Runnable run : lights){
             run.run();
         }
         Draw.reset();
-        buffer.endDraw();
+        buffer.end();
         Gl.blendEquationSeparate(Gl.funcAdd, Gl.funcAdd);
 
         Draw.color();
         Shaders.light.ambient.set(state.rules.ambientLight);
-        Draw.shader(Shaders.light);
-        Draw.rect(Draw.wrap(buffer.getTexture()), Core.camera.position.x, Core.camera.position.y, Core.camera.width, -Core.camera.height);
-        Draw.shader();
+        buffer.blit(Shaders.light);
 
         lights.clear();
     }

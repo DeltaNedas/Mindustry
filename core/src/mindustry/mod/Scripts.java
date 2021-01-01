@@ -1,31 +1,38 @@
 package mindustry.mod;
 
 import arc.*;
+import arc.assets.*;
+import arc.assets.loaders.MusicLoader.*;
+import arc.assets.loaders.SoundLoader.*;
+import arc.audio.*;
 import arc.files.*;
+import arc.func.*;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.Log.*;
 import mindustry.*;
 import mindustry.mod.Mods.*;
+
 import org.luaj.vm2.*;
 import org.luaj.vm2.lib.jse.*;
-import org.mozilla.javascript.*;
-import org.mozilla.javascript.commonjs.module.*;
-import org.mozilla.javascript.commonjs.module.provider.*;
+import rhino.*;
+import rhino.module.*;
+import rhino.module.provider.*;
 
 import java.io.*;
 import java.net.*;
 import java.util.regex.*;
 
 public class Scripts implements Disposable{
-    private final Array<String> blacklist = Array.with("net", "files", "reflect", "javax", "rhino", "file", "channels", "jdk",
+    private final Seq<String> blacklist = Seq.with(".net.", "java.net", "files", "reflect", "javax", "rhino", "file", "channels", "jdk",
         "runtime", "util.os", "rmi", "security", "org.", "sun.", "beans", "sql", "http", "exec", "compiler", "process", "system",
-        ".awt", "socket", "classloader", "oracle", "invoke");
-    private final Array<String> whitelist = Array.with("mindustry.net");
+        ".awt", "socket", "classloader", "oracle", "invoke", "java.util.function", "java.util.stream", "org.");
+    private final Seq<String> whitelist = Seq.with("mindustry.net", "netserver", "netclient", "com.sun.proxy.$proxy", "mindustry.gen.", "mindustry.logic.", "mindustry.async.", "saveio", "systemcursor");
     private final Context context;
-    private Scriptable scope;
+    private final Scriptable scope;
     private boolean errored;
-    private LoadedMod currentMod = null;
+
+    LoadedMod currentMod = null;
     private Globals luaGlobals;
 
     public Scripts(){
@@ -35,6 +42,7 @@ public class Scripts implements Disposable{
         context = Vars.platform.getScriptContext();
         context.setClassShutter(type -> !blacklist.contains(type.toLowerCase()::contains) || whitelist.contains(type.toLowerCase()::contains));
         context.getWrapFactory().setJavaPrimitiveWrap(false);
+        context.setLanguageVersion(Context.VERSION_ES6);
 
         scope = new ImporterTopLevel(context);
 
@@ -44,6 +52,7 @@ public class Scripts implements Disposable{
 
         // Initialise LuaJ
         luaGlobals = new Globals();
+        // TODO: use custom require
         luaGlobals.load(new JseBaseLib());
         luaGlobals.load(new PackageLib());
         luaGlobals.load(new Bit32Lib());
@@ -56,7 +65,7 @@ public class Scripts implements Disposable{
             errored = true;
         }
 
-        Log.debug("Time to load script engine: {0}", Time.elapsed());
+        Log.debug("Time to load script engine: @", Time.elapsed());
     }
 
     public boolean hasErrored(){
@@ -67,25 +76,20 @@ public class Scripts implements Disposable{
         try{
             if (lang == "js") {
                 Object o = context.evaluateString(scope, text, "console.js", 1, null);
-                if(o instanceof NativeJavaObject){
-                     o = ((NativeJavaObject)o).unwrap();
-                }
-                if(o instanceof Undefined){
-                    o = "undefined";
-                }
+                if(o instanceof NativeJavaObject n) o = n.unwrap();
+                if(o instanceof Undefined) o = "undefined";
                 return String.valueOf(o);
-            }else{
-                LuaValue chunk = luaGlobals.load(text);
-                Varargs ret = chunk.call();
-                return String.valueOf(ret);
             }
+            LuaValue chunk = luaGlobals.load(text);
+            Varargs ret = chunk.call();
+            return String.valueOf(ret);
         }catch(Throwable t){
-            return getError(t);
+            return getError(t, false);
         }
     }
 
-    private String getError(Throwable t){
-        t.printStackTrace();
+    private String getError(Throwable t, boolean log){
+        if(log) Log.err(t);
         return t.getClass().getSimpleName() + (t.getMessage() == null ? "" : ": " + t.getMessage());
     }
 
@@ -94,12 +98,88 @@ public class Scripts implements Disposable{
     }
 
     public void log(LogLevel level, String source, String message){
-        Log.log(level, "[{0}]: {1}", source, message);
+        Log.log(level, "[@]: @", source, message);
     }
+
+    //region utility mod functions
+
+    public String readString(String path){
+        return Vars.tree.get(path, true).readString();
+    }
+
+    public byte[] readBytes(String path){
+        return Vars.tree.get(path, true).readBytes();
+    }
+
+    public Sound loadSound(String soundName){
+        if(Vars.headless) return new Sound();
+
+        String name = "sounds/" + soundName;
+        String path = Vars.tree.get(name + ".ogg").exists() ? name + ".ogg" : name + ".mp3";
+
+        var sound = new Sound();
+        AssetDescriptor<?> desc = Core.assets.load(path, Sound.class, new SoundParameter(sound));
+        desc.errored = Throwable::printStackTrace;
+
+        return sound;
+    }
+
+    public Music loadMusic(String soundName){
+        if(Vars.headless) return new Music();
+
+        String name = "music/" + soundName;
+        String path = Vars.tree.get(name + ".ogg").exists() ? name + ".ogg" : name + ".mp3";
+
+        var music = new Music();
+        AssetDescriptor<?> desc = Core.assets.load(path, Music.class, new MusicParameter(music));
+        desc.errored = Throwable::printStackTrace;
+
+        return music;
+    }
+
+    /** Ask the user to select a file to read for a certain purpose like "Please upload a sprite" */
+    public void readFile(String purpose, String ext, Cons<String> cons){
+        selectFile(true, purpose, ext, fi -> cons.get(fi.readString()));
+    }
+
+    /** readFile but for a byte[] */
+    public void readBinFile(String purpose, String ext, Cons<byte[]> cons){
+        selectFile(true, purpose, ext, fi -> cons.get(fi.readBytes()));
+    }
+
+    /** Ask the user to write a file. */
+    public void writeFile(String purpose, String ext, String contents){
+        if(contents == null) contents = "";
+        final String fContents = contents;
+        selectFile(false, purpose, ext, fi -> fi.writeString(fContents));
+    }
+
+    /** writeFile but for a byte[] */
+    public void writeBinFile(String purpose, String ext, byte[] contents){
+        if(contents == null) contents = new byte[0];
+        final byte[] fContents = contents;
+        selectFile(false, purpose, ext, fi -> fi.writeBytes(fContents));
+    }
+
+    private void selectFile(boolean open, String purpose, String ext, Cons<Fi> cons){
+        purpose = purpose.startsWith("@") ? Core.bundle.get(purpose.substring(1)) : purpose;
+        //add purpose and extension at the top
+        String title = Core.bundle.get(open ? "open" : "save") + " - " + purpose + " (." + ext + ")";
+        Vars.platform.showFileChooser(open, title, ext, fi -> {
+            try{
+                cons.get(fi);
+            }catch(Exception e){
+                Log.err("Failed to select file '@' for a mod", fi);
+                Log.err(e);
+            }
+        });
+    }
+
+    //endregion
 
     public void run(LoadedMod mod, Fi file){
         currentMod = mod;
-	run(file.extension(), file.readString(), file.name());
+        run(file.extension(), file.readString(), file.name());
         currentMod = null;
     }
 
@@ -110,16 +190,21 @@ public class Scripts implements Disposable{
                     //inject script info into file (TODO maybe rhino handles this?)
                     context.evaluateString(scope, "modName = \"" + currentMod.name + "\"\nscriptName = \"" + file + "\"", "initscript.js", 1, null);
                 }
-                context.evaluateString(scope, script, file, 1, null);
+                context.evaluateString(scope, "(function(){'use strict';\n" + script + "\n})()", file, 0, null);
             }else{
                 if(currentMod != null){
-                    luaGlobals.load("modName = '" + currentMod.name + "'")).call();
+                    //inject local script info into file
+                    script = "local modName = '" + currentMod.name + "'\n"
+                        + "\nlocal scriptName = '" + file + "'\n" + script;
                 }
                 luaGlobals.load(script).call();
             }
             return true;
         }catch(Throwable t){
-            log(LogLevel.err, file, "" + getError(t));
+            if(currentMod != null){
+                file = currentMod.name + "/" + file;
+            }
+            log(LogLevel.err, file, "" + getError(t, true));
             return false;
         }
     }
@@ -127,7 +212,7 @@ public class Scripts implements Disposable{
     @Override
     public void dispose(){
         Context.exit();
-        // dispose lua globals
+        // TODO: dispose lua globals
     }
 
     private class ScriptModuleProvider extends UrlModuleSourceProvider{
@@ -138,7 +223,7 @@ public class Scripts implements Disposable{
         }
 
         @Override
-        public ModuleSource loadSource(String moduleId, Scriptable paths, Object validator) throws IOException, URISyntaxException{
+        public ModuleSource loadSource(String moduleId, Scriptable paths, Object validator) throws URISyntaxException{
             if(currentMod == null) return null;
             return loadSource(moduleId, currentMod.root.child("scripts"), validator);
         }
@@ -148,11 +233,13 @@ public class Scripts implements Disposable{
             if(matched.find()){
                 LoadedMod required = Vars.mods.locateMod(matched.group(1));
                 String script = matched.group(2);
-                if(required == null || root.equals(required.root.child("scripts"))){ // Mod not found, or already using a mod
+                if(required == null){ // Mod not found, treat it as a folder
                     Fi dir = root.child(matched.group(1));
                     if(!dir.exists()) return null; // Mod and folder not found
                     return loadSource(script, dir, validator);
                 }
+
+                currentMod = required;
                 return loadSource(script, required.root.child("scripts"), validator);
             }
 
