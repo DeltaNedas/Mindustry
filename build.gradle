@@ -37,6 +37,7 @@ allprojects{
         appName = 'Mindustry'
         steamworksVersion = '891ed912791e01fe9ee6237a6497e5212b85c256'
         rhinoVersion = '2617981f706e50b8753155d8e15e326308be3b22'
+        luajVersion = '3.0.1'
 
         loadVersionProps = {
             return new Properties().with{p -> p.load(file('../core/assets/version.properties').newReader()); return p }
@@ -330,6 +331,7 @@ project(":core"){
         api arcModule("extensions:fx")
         api arcModule("extensions:arcnet")
         api "com.github.Anuken:rhino:$rhinoVersion"
+        api "org.luaj:luaj-jse:$luajVersion"
         if(localArc() && debugged()) api arcModule("extensions:recorder")
 
         compileOnly project(":annotations")

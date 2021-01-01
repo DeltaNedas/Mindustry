@@ -1,35 +1,51 @@
-//Generated class. Do not modify.
+-- Generated class. Do not modify.
 
-const log = function(context, obj){
-    Vars.mods.getScripts().log(context, obj ? String(obj) : "null")
-}
+-- Globals
 
-var scriptName = "base.js"
-var modName = "none"
+new = luajava.newInstance
+local scripts = Vars.mods:getScripts()
 
-const print = text => log(scriptName, text);
+function log(context, obj)
+    scripts:log(context, tostring(obj))
+end
 
-const extendContent = function(classType, name, params){
-    return new JavaAdapter(classType, params, name)
-}
+-- TODO: move this into injected code
+--local _print_path = modName .. "/" .. scriptName
+function print(text)
+	log(_ENV.modName .. "/" .. _ENV.scriptName, text)
+end
 
-const extend = function(classType, params){
-    return new JavaAdapter(classType, params)
-}
+local import = {"readString", "readBytes", "loadMusic", "loadSound",
+    "readFile", "readBinFile", "writeFile", "writeBinFile"}
+for i, name in ipairs(import) do
+	_G[name] = function(...)
+		return scripts[name](scripts, ...)
+	end
+end
 
+function extend(class, ...)
+    local args = table.pack(...)
+    local def = args[args.n]
+    args[args.n] = nil
+    return luajava.createProxy(class, def, table.unpack(args)
+end
+
+-- TODO: see if needed
+-- these are not strictly necessary, but are kept for edge cases
+--[[function run(method) return java.lang.
 const run = method => new java.lang.Runnable(){run: method}
 const boolf = method => new Boolf(){get: method}
 const boolp = method => new Boolp(){get: method}
-const floatf = method => new Floatf(){get: method}
-const floatp = method => new Floatp(){get: method}
 const cons = method => new Cons(){get: method}
-const prov = method => new Prov(){get: method}
-const func = method => new Func(){get: method}
-const newEffect = (lifetime, renderer) => new Effects.Effect(lifetime, new Effects.EffectRenderer({render: renderer}))
-Call = Packages.mindustry.gen.Call
-const Calls = Call //backwards compat
+const prov = method => Prov(){get = method}
+function newEffect(lifetime, renderer) return Effects.Effect(lifetime, Effects.EffectRenderer{render = renderer}) end
+Call = Packages.mindustry.gen.Call]]
 
-importPackage(Packages.arc.math.geom)
+function newEffect(lifetime, renderer)
+    return new(Effects.Effect, lifetime, new(Effects.EffectRenderer, {render = renderer}))
+end
+
+--[[importPackage(Packages.arc.math.geom)
 importPackage(Packages.mindustry.graphics)
 importPackage(Packages.mindustry.ui.dialogs)
 importPackage(Packages.mindustry.world.blocks.liquid)
@@ -86,4 +102,4 @@ importPackage(Packages.mindustry.maps)
 importPackage(Packages.mindustry.world.blocks.logic)
 importPackage(Packages.arc.util)
 importPackage(Packages.mindustry.world.producers)
-importPackage(Packages.mindustry)
+importPackage(Packages.mindustry)]]

@@ -421,14 +421,14 @@ public class Mods implements Loadable{
 
     void loadScripts(LoadedMod mod, String lang){
         //if there's only one script file, use it (for backwards compatibility); if there isn't, use "main.<lang>"
-        Array<Fi> allScripts = mod.root.child("scripts").findAll(f -> f.extEquals(lang));
+        Seq<Fi> allScripts = mod.root.child("scripts").findAll(f -> f.extEquals(lang));
         Fi main = allScripts.size == 1 ? allScripts.first() : mod.root.child("scripts").child("main." + lang);
         if(main.exists() && !main.isDirectory()){
              try{
                  if(scripts == null){
                       scripts = platform.createScripts();
                  }
-                 scripts.run(lang, mod, main);
+                 scripts.run(mod, main);
              }catch(Throwable e){
                  Core.app.post(() -> {
                      Log.err("Error loading main script @ for mod @.", main.name(), mod.meta.name);

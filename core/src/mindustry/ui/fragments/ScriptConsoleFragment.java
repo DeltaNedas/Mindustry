@@ -167,11 +167,11 @@ public class ScriptConsoleFragment extends Table{
         history.insert(1, message);
 
         addMessage("[lightgray]> " + message.replace("[", "[["));
-        addMessage(mods.getScripts().runConsoleJs(message).replace("[", "[["));
+		// TODO: add way to use lua
+        addMessage(mods.getScripts().runConsole("js", message).replace("[", "[["));
     }
 
     public void toggle(){
-
         if(!open){
             scene.setKeyboardFocus(chatfield);
             open = !open;

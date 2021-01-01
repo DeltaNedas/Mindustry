@@ -14,6 +14,7 @@ import mindustry.*;
 import mindustry.mod.Mods.*;
 
 import org.luaj.vm2.*;
+import org.luaj.vm2.lib.*;
 import org.luaj.vm2.lib.jse.*;
 import rhino.*;
 import rhino.module.*;
@@ -57,10 +58,11 @@ public class Scripts implements Disposable{
         luaGlobals.load(new PackageLib());
         luaGlobals.load(new Bit32Lib());
         luaGlobals.load(new TableLib());
-        luaGlobals.load(new JseStringLib());
+        luaGlobals.load(new StringLib());
         luaGlobals.load(new JseMathLib());
+        luaGlobals.load(new LuajavaLib());
 
-        if(!(run("js", Core.files.internal("scripts/global.js").readString(), "global.js")){
+        if(!(run("js", Core.files.internal("scripts/global.js").readString(), "global.js")
             && run("lua", Core.files.internal("scripts/global.lua").readString(), "global.lua"))){
             errored = true;
         }
